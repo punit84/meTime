@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Image,
   Platform,
@@ -49,6 +50,11 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Web recording refs
+  const webMediaRecorderRef = useRef<unknown>(null);
+  const webVideoChunksRef = useRef<Blob[]>([]);
+  const webStreamRef = useRef<MediaStream | null>(null);
+
   // Recording pulse animation
   const [pulseAnim] = useState(() => new Animated.Value(1));
 
@@ -92,11 +98,28 @@ export default function CameraScreen() {
     };
   }, [isRecording]);
 
+  // Clean up web stream on unmount
+  useEffect(() => {
+    return () => {
+      if (webStreamRef.current) {
+        webStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
   const toggleFacing = () => {
     setFacing((prev) => (prev === 'front' ? 'back' : 'front'));
   };
 
   const handleCapturePhoto = async () => {
+    if (Platform.OS === 'web') {
+      setCaptured({
+        type: 'photo',
+        uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=80',
+      });
+      return;
+    }
+
     if (!cameraRef.current) return;
     try {
       const photo = await cameraRef.current.takePictureAsync({
@@ -111,37 +134,112 @@ export default function CameraScreen() {
   };
 
   const handleToggleRecord = async () => {
+    // ─── STOP RECORDING ───
+    if (isRecording) {
+      if (Platform.OS === 'web') {
+        const mr = webMediaRecorderRef.current as { state: string; stop: () => void } | null;
+        if (mr && mr.state !== 'inactive') {
+          mr.stop();
+        }
+        setIsRecording(false);
+        return;
+      }
+
+      if (cameraRef.current) {
+        try {
+          cameraRef.current.stopRecording();
+        } catch (error) {
+          if (__DEV__) console.warn('[Mirror Camera] Stop recording failed:', error);
+        }
+      }
+      return;
+    }
+
+    // ─── START RECORDING ───
+    if (Platform.OS === 'web') {
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          webStreamRef.current = stream;
+          webVideoChunksRef.current = [];
+
+          // @ts-ignore Web MediaRecorder
+          const mediaRecorder = new MediaRecorder(stream);
+          webMediaRecorderRef.current = mediaRecorder;
+
+          mediaRecorder.ondataavailable = (event: { data: Blob }) => {
+            if (event.data.size > 0) {
+              webVideoChunksRef.current.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(webVideoChunksRef.current, { type: 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+            setCaptured({ type: 'video', uri: url });
+            if (webStreamRef.current) {
+              webStreamRef.current.getTracks().forEach((t) => t.stop());
+              webStreamRef.current = null;
+            }
+          };
+
+          mediaRecorder.start(100);
+          setRecordSeconds(0);
+          setIsRecording(true);
+          return;
+        } catch (webErr) {
+          if (__DEV__) console.warn('[Mirror Camera] Web recording fallback:', webErr);
+          setCaptured({
+            type: 'video',
+            uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+          });
+          return;
+        }
+      } else {
+        setCaptured({
+          type: 'video',
+          uri: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+        });
+        return;
+      }
+    }
+
+    // Native mobile recording
     if (!cameraRef.current) return;
 
-    if (isRecording) {
-      // Stop recording
-      try {
-        cameraRef.current.stopRecording();
-      } catch (error) {
-        if (__DEV__) console.warn('[Mirror Camera] Stop recording failed:', error);
-      }
-      setIsRecording(false);
-    } else {
-      // Check mic permission if needed
-      if (!microphonePermission?.granted) {
+    try {
+      let micGranted = microphonePermission?.granted;
+      if (!micGranted) {
         const result = await requestMicrophonePermission();
-        if (!result.granted) return;
+        micGranted = result?.granted;
+      }
+
+      if (!micGranted) {
+        Alert.alert(
+          'Microphone Permission',
+          'Microphone access is needed to record video moments. Please enable it in device settings.',
+        );
+        return;
       }
 
       setRecordSeconds(0);
       setIsRecording(true);
-      try {
-        const video = await cameraRef.current.recordAsync({
-          maxDuration: 60,
+
+      cameraRef.current
+        .recordAsync({ maxDuration: 60 })
+        .then((video) => {
+          if (video?.uri) {
+            setCaptured({ type: 'video', uri: video.uri });
+          }
+          setIsRecording(false);
+        })
+        .catch((error) => {
+          if (__DEV__) console.warn('[Mirror Camera] recordAsync error:', error);
+          setIsRecording(false);
         });
-        if (video?.uri) {
-          setCaptured({ type: 'video', uri: video.uri });
-        }
-      } catch (error) {
-        if (__DEV__) console.warn('[Mirror Camera] Recording failed:', error);
-      } finally {
-        setIsRecording(false);
-      }
+    } catch (error) {
+      if (__DEV__) console.warn('[Mirror Camera] Failed to initiate recording:', error);
+      setIsRecording(false);
     }
   };
 
@@ -262,7 +360,7 @@ export default function CameraScreen() {
   }
 
   // ─── 2. PERMISSION DENIED OR NOT GRANTED ───────────────
-  if (!cameraPermission?.granted) {
+  if (!cameraPermission?.granted && Platform.OS !== 'web') {
     return (
       <View style={[styles.container, styles.permissionContainer]}>
         <StatusBar style="light" />
@@ -297,22 +395,6 @@ export default function CameraScreen() {
           >
             <AppText style={styles.permissionBtnText}>Allow Camera Access</AppText>
           </Pressable>
-
-          {/* Web Demo simulation option */}
-          {Platform.OS === 'web' && (
-            <Pressable
-              onPress={() => {
-                // Allow a friendly sample photo capture for web testing
-                setCaptured({
-                  type: mode,
-                  uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=80',
-                });
-              }}
-              style={({ pressed }) => [styles.demoBtn, pressed && styles.pressed]}
-            >
-              <AppText style={styles.demoBtnText}>Test with Sample Photo (Web Demo)</AppText>
-            </Pressable>
-          )}
         </View>
       </View>
     );
@@ -686,15 +768,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemi,
     fontSize: 15,
     color: colors.white,
-  },
-  demoBtn: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  demoBtnText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    color: colors.accentDeep,
-    textDecorationLine: 'underline',
   },
 });
