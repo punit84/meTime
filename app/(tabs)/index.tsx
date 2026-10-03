@@ -1,18 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { HomeHero } from '@/components/HomeHero';
 import { MoodSelector } from '@/components/MoodSelector';
 import { NeedSection } from '@/components/NeedSection';
 import { Screen } from '@/components/Screen';
+import { useApp } from '@/lib/AppProvider';
 import { MOODS } from '@/lib/moods';
 import { NEEDS } from '@/lib/needs';
 import { colors, fonts, radii, spacing } from '@/lib/theme';
 import type { MoodId } from '@/lib/types-phase1';
 
 export default function HomeScreen() {
-  const [mood, setMood] = useState<MoodId | null>(null);
-  const fade = useRef(new Animated.Value(0)).current;
+  const { user, todayMood, selectMood } = useApp();
+  const [fade] = useState(() => new Animated.Value(0));
+
+  // Map stored MoodType to MoodId for the selector
+  const currentMoodId: MoodId | null = todayMood
+    ? (todayMood.mood as MoodId)
+    : null;
 
   useEffect(() => {
     Animated.timing(fade, {
@@ -22,15 +28,23 @@ export default function HomeScreen() {
     }).start();
   }, [fade]);
 
+  const handleMoodChange = (moodId: MoodId) => {
+    selectMood(moodId);
+  };
+
   return (
     <Screen edges={['top', 'left', 'right']}>
       <Animated.View style={{ opacity: fade }}>
-        <HomeHero />
+        <HomeHero name={user.name || undefined} />
 
         <AppText variant="label" style={styles.sectionLabel}>
           How are you feeling today?
         </AppText>
-        <MoodSelector moods={MOODS} value={mood} onChange={setMood} />
+        <MoodSelector
+          moods={MOODS}
+          value={currentMoodId}
+          onChange={handleMoodChange}
+        />
 
         <View style={styles.message} accessibilityRole="text">
           <AppText style={styles.messageLine}>

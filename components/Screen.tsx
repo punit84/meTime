@@ -5,8 +5,9 @@ import {
   StyleSheet,
   View,
   ViewStyle,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/lib/theme';
 
 type Props = {
@@ -18,6 +19,9 @@ type Props = {
   padded?: boolean;
 };
 
+// Navigation bar base height (48 minHeight + 16 vertical padding + 2 border) ~ 66px
+const TAB_BAR_BASE_HEIGHT = 66;
+
 export function Screen({
   children,
   scroll = true,
@@ -26,11 +30,28 @@ export function Screen({
   edges = ['top', 'left', 'right'],
   padded = true,
 }: Props) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+
+  const isTabScreen = edges.includes('top') && padded;
+  const navBottomInset = Math.max(insets.bottom, 12);
+  const bottomPadding = isTabScreen
+    ? TAB_BAR_BASE_HEIGHT + navBottomInset + spacing.lg
+    : Math.max(insets.bottom, 16) + spacing.lg;
+
+  // Responsive horizontal padding based on screen width
+  const horizontalPadding = width < 360 ? spacing.md : spacing.lg;
+  const topPadding = edges.includes('top') && padded ? spacing.sm : 0;
+
   const body = scroll ? (
     <ScrollView
+      style={styles.fill}
       contentContainerStyle={[
-        padded && styles.padded,
-        styles.scrollBottom,
+        {
+          paddingTop: topPadding,
+          paddingBottom: bottomPadding,
+        },
+        padded && { paddingHorizontal: horizontalPadding },
         contentStyle,
       ]}
       showsVerticalScrollIndicator={false}
@@ -39,7 +60,14 @@ export function Screen({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.fill, padded && styles.padded, contentStyle]}>
+    <View
+      style={[
+        styles.fill,
+        { paddingTop: topPadding },
+        padded && { paddingHorizontal: horizontalPadding },
+        contentStyle,
+      ]}
+    >
       {children}
     </View>
   );
@@ -47,8 +75,8 @@ export function Screen({
   return (
     <View style={[styles.root, style]}>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView style={styles.fill} edges={edges}>
-        {body}
+      <SafeAreaView style={styles.safeArea} edges={edges}>
+        <View style={styles.container}>{body}</View>
       </SafeAreaView>
     </View>
   );
@@ -59,12 +87,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  fill: { flex: 1 },
-  padded: {
-    paddingHorizontal: spacing.lg,
+  safeArea: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
-  scrollBottom: {
-    paddingBottom: spacing.xxl + 28,
-    paddingTop: spacing.sm,
+  container: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 540,
+  },
+  fill: {
+    flex: 1,
   },
 });
+
+

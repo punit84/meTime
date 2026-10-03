@@ -64,62 +64,64 @@ export function NavigationBar({
 }: {
   state: Props['state'];
   descriptors: Props['descriptors'];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   navigation: any;
 }) {
   const insets = useSafeAreaInsets();
 
   return (
     <View
-      style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 10) }]}
+      style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      pointerEvents="box-none"
     >
-      <View style={styles.bar} accessibilityRole="tablist">
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
-          const { options } = descriptors[route.key];
-          const meta = ICONS[route.name] ?? {
-            active: 'ellipse' as const,
-            idle: 'ellipse-outline' as const,
-            label: options.title ?? route.name,
-          };
-          const label = options.tabBarAccessibilityLabel ?? meta.label;
+      <View style={styles.container} pointerEvents="box-none">
+        <View style={styles.bar} accessibilityRole="tablist">
+          {state.routes.map((route, index) => {
+            const focused = state.index === index;
+            const { options } = descriptors[route.key];
+            const meta = ICONS[route.name] ?? {
+              active: 'ellipse' as const,
+              idle: 'ellipse-outline' as const,
+              label: options.title ?? route.name,
+            };
+            const label = options.tabBarAccessibilityLabel ?? meta.label;
 
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!focused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
-            }
-          };
+            const onPress = () => {
+              const event = navigation.emit({
+                type: 'tabPress',
+                target: route.key,
+                canPreventDefault: true,
+              });
+              if (!focused && !event.defaultPrevented) {
+                navigation.navigate(route.name, route.params);
+              }
+            };
 
-          return (
-            <Pressable
-              key={route.key}
-              onPress={onPress}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: focused }}
-              accessibilityLabel={label}
-              style={styles.item}
-            >
-              <View style={[styles.pill, focused && styles.pillActive]}>
-                <Ionicons
-                  name={focused ? meta.active : meta.idle}
-                  size={20}
-                  color={focused ? colors.accentDeep : colors.icon}
-                />
-              </View>
-              <AppText
-                style={[styles.label, focused && styles.labelActive]}
-                numberOfLines={1}
+            return (
+              <Pressable
+                key={route.key}
+                onPress={onPress}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: focused }}
+                accessibilityLabel={label}
+                style={styles.item}
               >
-                {meta.label}
-              </AppText>
-            </Pressable>
-          );
-        })}
+                <View style={[styles.pill, focused && styles.pillActive]}>
+                  <Ionicons
+                    name={focused ? meta.active : meta.idle}
+                    size={20}
+                    color={focused ? colors.accentDeep : colors.icon}
+                  />
+                </View>
+                <AppText
+                  style={[styles.label, focused && styles.labelActive]}
+                  numberOfLines={1}
+                >
+                  {meta.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -128,10 +130,16 @@ export function NavigationBar({
 const styles = StyleSheet.create({
   outer: {
     position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
+    left: 0,
+    right: 0,
     bottom: 0,
+    alignItems: 'center',
     backgroundColor: 'transparent',
+  },
+  container: {
+    width: '100%',
+    maxWidth: 540,
+    paddingHorizontal: spacing.md,
   },
   bar: {
     flexDirection: 'row',

@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, ImageBackground, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppText } from '@/components/AppText';
-import { images } from '@/lib/images';
+import { appImages } from '@/lib/images';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 
 function greetingForHour(hour: number) {
@@ -13,16 +13,19 @@ function greetingForHour(hour: number) {
 
 type Props = {
   brand?: string;
+  name?: string;
   support?: string;
 };
 
 export function HomeHero({
   brand = 'ME TIME',
+  name,
   support = 'Take a little moment for yourself.',
 }: Props) {
-  const fade = useRef(new Animated.Value(0)).current;
-  const rise = useRef(new Animated.Value(12)).current;
-  const greeting = greetingForHour(new Date().getHours());
+  const [fade] = useState(() => new Animated.Value(0));
+  const [rise] = useState(() => new Animated.Value(12));
+  const timeGreeting = greetingForHour(new Date().getHours());
+  const greeting = name ? `${timeGreeting}, ${name} ♡` : `${timeGreeting}, ♡`;
 
   useEffect(() => {
     Animated.parallel([
@@ -47,21 +50,20 @@ export function HomeHero({
       ]}
     >
       <ImageBackground
-        source={images.home.hero}
+        source={appImages.homeHero}
         style={styles.hero}
         imageStyle={styles.heroImage}
+        resizeMode="cover"
         accessibilityRole="image"
-        accessibilityLabel="Warm cozy interior with soft evening light"
+        accessibilityLabel="Warm sunlight through window with cozy interior"
       >
         <LinearGradient
-          colors={['rgba(74,59,52,0.08)', 'rgba(74,59,52,0.42)']}
+          colors={['rgba(74,59,52,0.0)', 'rgba(74,59,52,0.28)', 'rgba(74,59,52,0.68)']}
           style={styles.overlay}
         />
         <View style={styles.content}>
           <AppText style={styles.brand}>{brand}</AppText>
-          <AppText style={styles.greeting}>
-            {greeting}, ♡
-          </AppText>
+          <AppText style={styles.greeting}>{greeting}</AppText>
           <AppText style={styles.support}>{support}</AppText>
         </View>
       </ImageBackground>
@@ -75,42 +77,44 @@ const styles = StyleSheet.create({
     ...shadows.soft,
   },
   hero: {
-    minHeight: 220,
+    width: '100%',
+    aspectRatio: 1376 / 768,
     borderRadius: radii.xl,
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },
   heroImage: {
     borderRadius: radii.xl,
+    width: '100%',
+    height: '100%',
   },
   overlay: {
     ...StyleSheet.absoluteFill,
   },
   content: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
     zIndex: 2,
   },
   brand: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    letterSpacing: 2.4,
-    color: 'rgba(255,251,247,0.88)',
-    marginBottom: spacing.sm,
+    fontSize: 10,
+    letterSpacing: 2.2,
+    color: 'rgba(255,251,247,0.92)',
+    marginBottom: 2,
   },
   greeting: {
     fontFamily: fonts.displayBold,
-    fontSize: 36,
-    lineHeight: 40,
+    fontSize: 26,
+    lineHeight: 30,
     color: colors.white,
-    marginBottom: spacing.sm,
+    marginBottom: 2,
   },
   support: {
     fontFamily: fonts.body,
-    fontSize: 14,
-    lineHeight: 20,
-    color: 'rgba(255,251,247,0.9)',
+    fontSize: 12,
+    lineHeight: 16,
+    color: 'rgba(255,251,247,0.92)',
     maxWidth: 240,
   },
 });

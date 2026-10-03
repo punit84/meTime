@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ type CardProps = {
   image: ImageSourcePropType;
   onPress: () => void;
   large?: boolean;
+  wide?: boolean;
 };
 
 export function ImageFeatureCard({
@@ -33,7 +35,28 @@ export function ImageFeatureCard({
   image,
   onPress,
   large = false,
+  wide = false,
 }: CardProps) {
+  if (wide) {
+    return (
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}. ${description}`}
+        style={({ pressed }) => [styles.wideCard, pressed && styles.pressed]}
+      >
+        <Image source={image} style={styles.wideImage} resizeMode="cover" />
+        <View style={styles.wideCopy}>
+          <AppText style={styles.title}>{title}</AppText>
+          <AppText muted style={styles.desc} numberOfLines={2}>
+            {description}
+          </AppText>
+        </View>
+        <GoButton />
+      </Pressable>
+    );
+  }
+
   return (
     <Pressable
       onPress={onPress}
@@ -44,7 +67,11 @@ export function ImageFeatureCard({
         pressed && styles.pressed,
       ]}
     >
-      <Image source={image} style={large ? styles.largeImage : styles.smallImage} />
+      <Image
+        source={image}
+        style={large ? styles.largeImage : styles.smallImage}
+        resizeMode="cover"
+      />
       <View style={styles.copy}>
         <AppText style={[styles.title, large && styles.titleLarge]}>{title}</AppText>
         <AppText muted style={styles.desc} numberOfLines={2}>
@@ -62,6 +89,9 @@ type NeedSectionProps = {
 
 export function NeedSection({ needs }: NeedSectionProps) {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 520;
+
   const large = needs.filter((n) => n.size === 'large');
   const small = needs.filter((n) => n.size === 'small');
 
@@ -80,24 +110,55 @@ export function NeedSection({ needs }: NeedSectionProps) {
           </View>
         ))}
       </View>
-      <View style={styles.smallRow}>
-        {small.map((need) => (
-          <View key={need.id} style={styles.smallWrap}>
-            <ImageFeatureCard
-              title={need.title}
-              description={need.description}
-              image={need.image}
-              onPress={() => router.push(need.href)}
-            />
+
+      {isNarrow ? (
+        <View style={styles.narrowContainer}>
+          <View style={styles.smallRow}>
+            {small.slice(0, 2).map((need) => (
+              <View key={need.id} style={styles.smallWrap}>
+                <ImageFeatureCard
+                  title={need.title}
+                  description={need.description}
+                  image={need.image}
+                  onPress={() => router.push(need.href)}
+                />
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+          {small.slice(2).map((need) => (
+            <View key={need.id} style={styles.fullWidthWrap}>
+              <ImageFeatureCard
+                wide
+                title={need.title}
+                description={need.description}
+                image={need.image}
+                onPress={() => router.push(need.href)}
+              />
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.smallRow}>
+          {small.map((need) => (
+            <View key={need.id} style={styles.smallWrap}>
+              <ImageFeatureCard
+                title={need.title}
+                description={need.description}
+                image={need.image}
+                onPress={() => router.push(need.href)}
+              />
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   section: { gap: spacing.md },
+  narrowContainer: { gap: spacing.md },
+  fullWidthWrap: { width: '100%' },
   largeRow: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -105,7 +166,7 @@ const styles = StyleSheet.create({
   largeWrap: { flex: 1 },
   smallRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   smallWrap: { flex: 1 },
   largeCard: {
@@ -126,6 +187,16 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     ...shadows.soft,
   },
+  wideCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.soft,
+  },
   pressed: { opacity: 0.94, transform: [{ scale: 0.99 }] },
   largeImage: {
     width: '100%',
@@ -133,13 +204,24 @@ const styles = StyleSheet.create({
   },
   smallImage: {
     width: '100%',
-    height: 78,
+    height: 88,
+  },
+  wideImage: {
+    width: 90,
+    height: 76,
   },
   copy: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
-    minHeight: 72,
+    paddingRight: 38,
+    minHeight: 68,
+  },
+  wideCopy: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingRight: 48,
   },
   title: {
     fontFamily: fonts.bodySemi,

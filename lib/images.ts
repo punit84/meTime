@@ -1,6 +1,12 @@
+export const appImages = {
+  homeHero: require('../assets/images/backgrounds/home-v2.jpg'),
+  mySpaceHero: require('../assets/images/backgrounds/myspace-v2.jpg'),
+  listenHero: require('../assets/images/backgrounds/listen-v2.jpg'),
+} as const;
+
 export const images = {
   home: {
-    hero: require('../assets/images/home/hero.jpg'),
+    hero: appImages.homeHero,
     mirror: require('../assets/images/home/mirror.jpg'),
     skincare: require('../assets/images/home/skincare.jpg'),
     write: require('../assets/images/home/write.jpg'),
@@ -17,13 +23,14 @@ export const images = {
     hero: require('../assets/images/write/hero.jpg'),
   },
   listen: {
-    hero: require('../assets/images/listen/hero.jpg'),
-    playlist: require('../assets/images/listen/playlist.jpg'),
+    hero: appImages.listenHero,
+    playlist: appImages.listenHero,
   },
   games: {
     hero: require('../assets/images/games/hero.jpg'),
   },
   myspace: {
+    hero: appImages.mySpaceHero,
     journal: require('../assets/images/myspace/journal.jpg'),
     mirror: require('../assets/images/myspace/mirror.jpg'),
     voice: require('../assets/images/myspace/voice.jpg'),
@@ -37,3 +44,4 @@ export const images = {
     prompts: require('../assets/images/explore/prompts.jpg'),
   },
 } as const;
+

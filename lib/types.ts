@@ -1,10 +1,84 @@
-export type Mood = 'happy' | 'sad' | 'calm' | 'anxious' | 'energized';
+/**
+ * Me Time — Phase 2 Data Models
+ *
+ * Central type definitions for user data, mood tracking,
+ * and application preferences.
+ */
+
+// ─── Mood ────────────────────────────────────────────────
+
+/** The five approved mood values. */
+export type MoodType = 'happy' | 'sad' | 'calm' | 'uneasy' | 'glow';
+
+/** All allowed mood IDs — use for runtime validation. */
+export const MOOD_VALUES: readonly MoodType[] = [
+  'happy',
+  'sad',
+  'calm',
+  'uneasy',
+  'glow',
+] as const;
+
+/** A single mood check-in entry. */
+export type MoodEntry = {
+  id: string;
+  mood: MoodType;
+  createdAt: string; // ISO 8601
+};
+
+// ─── Mirror Media ────────────────────────────────────────
+
+export type MirrorMediaType = 'photo' | 'video';
+
+export type MirrorEntry = {
+  id: string;
+  type: MirrorMediaType;
+  uri: string;
+  createdAt: string; // ISO 8601
+  mood?: MoodType | null;
+};
+
+// ─── User Profile ────────────────────────────────────────
 
 export type UserProfile = {
-  name?: string;
-  preferredMood?: Mood;
+  id: string;
+  name: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
   onboardingComplete: boolean;
 };
+
+// ─── Preferences ─────────────────────────────────────────
+
+export type AppearanceMode = 'system' | 'light' | 'dark';
+
+export type AppPreferences = {
+  appearance: AppearanceMode;
+  notificationsEnabled: boolean;
+};
+
+export const DEFAULT_PREFERENCES: AppPreferences = {
+  appearance: 'system',
+  notificationsEnabled: true,
+};
+
+// ─── Storage Meta ────────────────────────────────────────
+
+export const STORAGE_VERSION = 1;
+
+export type StorageState = {
+  version: number;
+};
+
+// ─── Legacy re-exports for backward compatibility ────────
+
+/**
+ * @deprecated Use MoodType instead.
+ * Kept temporarily so existing imports don't break during migration.
+ */
+export type Mood = MoodType;
+
+// ─── Content Models (unchanged from Phase 1) ────────────
 
 export type Strength = {
   id: string;
@@ -22,7 +96,7 @@ export type GrowthAction = {
 export type JournalEntry = {
   id: string;
   type: 'text' | 'voice';
-  mood?: Mood;
+  mood?: MoodType;
   body?: string;
   uri?: string;
   createdAt: string;
@@ -31,7 +105,7 @@ export type JournalEntry = {
 export type FavoriteTrack = {
   id: string;
   title: string;
-  moodTag: Mood;
+  moodTag: MoodType;
   uriOrLink: string;
 };
 
@@ -42,16 +116,3 @@ export type OutfitSelfie = {
   feedback: string;
   createdAt: string;
 };
-
-export const MOODS: {
-  id: Mood;
-  label: string;
-  short: string;
-  mark: string;
-}[] = [
-  { id: 'happy', label: 'Soft happy', short: 'Happy', mark: '☀' },
-  { id: 'sad', label: 'Soft sad', short: 'Sad', mark: '☾' },
-  { id: 'calm', label: 'Dreamy calm', short: 'Calm', mark: '☁' },
-  { id: 'anxious', label: 'A little uneasy', short: 'Uneasy', mark: '◌' },
-  { id: 'energized', label: 'Main character', short: 'Glow', mark: '✦' },
-];

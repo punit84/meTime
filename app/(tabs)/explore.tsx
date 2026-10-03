@@ -1,4 +1,4 @@
-import { Alert, StyleSheet } from 'react-native';
+import { Alert } from 'react-native';
 import { FeatureCard } from '@/components/FeatureCard';
 import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';

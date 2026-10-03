@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
-import { colors, fonts, spacing } from '@/lib/theme';
+import { colors, fonts, radii, spacing } from '@/lib/theme';
 import type { MoodConfig, MoodId } from '@/lib/types-phase1';
 
 type ItemProps = {
@@ -12,7 +12,7 @@ type ItemProps = {
 };
 
 function MoodItem({ mood, selected, onSelect }: ItemProps) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const [scale] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     Animated.spring(scale, {
@@ -44,14 +44,17 @@ function MoodItem({ mood, selected, onSelect }: ItemProps) {
       >
         <Ionicons
           name={mood.icon}
-          size={22}
+          size={20}
           color={selected ? mood.accent : colors.icon}
         />
       </Animated.View>
-      <AppText style={[styles.title, selected && styles.titleSelected]}>
+      <AppText
+        style={[styles.title, selected && styles.titleSelected]}
+        numberOfLines={1}
+      >
         {mood.title}
       </AppText>
-      <AppText muted style={styles.desc}>
+      <AppText muted style={styles.desc} numberOfLines={2}>
         {mood.description}
       </AppText>
     </Pressable>
@@ -87,12 +90,14 @@ const styles = StyleSheet.create({
   },
   item: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
   },
   circle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: '100%',
+    maxWidth: 54,
+    aspectRatio: 1,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
@@ -106,6 +111,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textPrimary,
     marginBottom: 2,
+    textAlign: 'center',
   },
   titleSelected: {
     fontFamily: fonts.bodySemi,
@@ -114,5 +120,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 13,
     textAlign: 'center',
+    minHeight: 26,
   },
 });
