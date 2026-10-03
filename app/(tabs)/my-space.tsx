@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import {
   Image,
   ImageBackground,
@@ -8,6 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { EmptyState } from '@/components/EmptyState';
@@ -16,6 +18,14 @@ import { useApp } from '@/lib/AppProvider';
 import { MOODS } from '@/lib/moods';
 import { appImages } from '@/lib/images';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
+import type { VoiceEntry } from '@/lib/types';
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
 
 /** Sections that belong to later phases — show empty states. */
 const OTHER_SPACE_SECTIONS = [
@@ -25,13 +35,6 @@ const OTHER_SPACE_SECTIONS = [
     icon: 'book-outline' as const,
     emptyTitle: 'Your pages are waiting.',
     emptySubtitle: 'My thoughts will have a place here.',
-  },
-  {
-    id: 'voice',
-    title: 'My Voice',
-    icon: 'mic-outline' as const,
-    emptyTitle: 'Your voice is yours.',
-    emptySubtitle: 'Private recordings will appear here.',
   },
   {
     id: 'memories',
@@ -44,7 +47,60 @@ const OTHER_SPACE_SECTIONS = [
 
 export default function MySpaceScreen() {
   const router = useRouter();
-  const { todayMood, mirrorEntries } = useApp();
+  const { todayMood, mirrorEntries, voiceEntries } = useApp();
+
+  // Audio preview playback in My Space
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleToggleVoicePlay = async (entry: VoiceEntry) => {
+    if (playingVoiceId === entry.id && soundRef.current) {
+      await soundRef.current.pauseAsync();
+      setPlayingVoiceId(null);
+      return;
+    }
+
+    if (soundRef.current) {
+      try {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+      } catch {}
+      soundRef.current = null;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: entry.uri },
+        { shouldPlay: true },
+        (status) => {
+          if (status.isLoaded) {
+            if (status.didJustFinish) {
+              setPlayingVoiceId(null);
+            }
+          }
+        },
+      );
+      soundRef.current = sound;
+      setPlayingVoiceId(entry.id);
+    } catch (error) {
+      if (__DEV__) console.warn('[MySpace] Voice play failed:', error);
+      setPlayingVoiceId(null);
+    }
+  };
 
   // Find the mood config for today's mood
   const moodConfig = todayMood
@@ -52,6 +108,7 @@ export default function MySpaceScreen() {
     : null;
 
   const mirrorCount = mirrorEntries.length;
+  const voiceCount = voiceEntries.length;
 
   return (
     <Screen>
@@ -113,7 +170,7 @@ export default function MySpaceScreen() {
         </View>
       )}
 
-      {/* My Mirror Section Card */}
+      {/* 1. My Mirror Section Card */}
       <Pressable
         onPress={() => router.push(mirrorCount > 0 ? '/mirror/gallery' : '/mirror')}
         style={({ pressed }) => [styles.sectionCard, pressed && styles.pressed]}
@@ -167,7 +224,113 @@ export default function MySpaceScreen() {
         )}
       </Pressable>
 
-      {/* Other Space sections with empty states */}
+      {/* 2. Soft Talk / My Voice Section Card */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIconWrap, { backgroundColor: colors.surfacePeach }]}>
+            <Ionicons name="mic-outline" size={16} color={colors.icon} />
+          </View>
+          <View style={styles.sectionTitleWrap}>
+            <AppText style={styles.sectionTitle}>Soft Talk</AppText>
+            {voiceCount > 0 && (
+              <AppText muted style={styles.sectionMeta}>
+                {voiceCount} recording{voiceCount > 1 ? 's' : ''}
+              </AppText>
+            )}
+          </View>
+          {voiceCount > 0 && (
+            <Pressable
+              onPress={() => router.push('/soft-talk/voice')}
+              style={({ pressed }) => [styles.viewAllBtn, pressed && styles.pressed]}
+            >
+              <AppText style={styles.viewAllText}>View all</AppText>
+              <Ionicons name="chevron-forward" size={13} color={colors.accentDeep} />
+            </Pressable>
+          )}
+        </View>
+
+        {voiceCount === 0 ? (
+          <View style={styles.voiceEmptyWrap}>
+            <EmptyState
+              icon="mic-outline"
+              title="No voice notes yet."
+              subtitle="Whenever you need to let something out, you can leave it here."
+            />
+            <Pressable
+              onPress={() => router.push('/soft-talk')}
+              style={({ pressed }) => [styles.voiceEmptyBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="mic-outline" size={15} color={colors.textPrimary} />
+              <AppText style={styles.voiceEmptyBtnText}>Start a Soft Talk</AppText>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.voiceList}>
+            {voiceEntries.slice(0, 3).map((entry) => {
+              const isPlaying = playingVoiceId === entry.id;
+              const moodConfig = entry.mood
+                ? MOODS.find((m) => m.id === entry.mood)
+                : null;
+
+              const dateStr = new Date(entry.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              });
+
+              return (
+                <View key={entry.id} style={styles.voicePreviewRow}>
+                  <Pressable
+                    onPress={() => handleToggleVoicePlay(entry)}
+                    style={({ pressed }) => [
+                      styles.voicePlayBtn,
+                      isPlaying && styles.voicePlayBtnActive,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    <Ionicons
+                      name={isPlaying ? 'pause' : 'play'}
+                      size={13}
+                      color={isPlaying ? colors.white : colors.textPrimary}
+                    />
+                  </Pressable>
+
+                  <View style={styles.voicePreviewInfo}>
+                    <AppText style={styles.voicePreviewDuration}>
+                      {formatDuration(entry.durationMs)}
+                    </AppText>
+                    <AppText muted style={styles.voicePreviewDate}>
+                      {dateStr}
+                    </AppText>
+                  </View>
+
+                  {moodConfig && (
+                    <View
+                      style={[
+                        styles.voiceMoodBadge,
+                        { backgroundColor: moodConfig.wash },
+                      ]}
+                    >
+                      <Ionicons
+                        name={moodConfig.icon}
+                        size={11}
+                        color={moodConfig.accent}
+                      />
+                      <AppText
+                        style={[styles.voiceMoodText, { color: moodConfig.accent }]}
+                      >
+                        {moodConfig.title}
+                      </AppText>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* 3. Other Space sections with empty states */}
       {OTHER_SPACE_SECTIONS.map((section) => (
         <View key={section.id} style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -280,6 +443,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
+    paddingBottom: 4,
   },
   sectionIconWrap: {
     width: 30,
@@ -301,6 +465,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  viewAllText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.accentDeep,
+  },
+
+  // Mirror strip
   mirrorThumbnailsRow: {
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
@@ -332,6 +510,83 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Voice list in My Space
+  voiceList: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  voicePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceWarm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.sm,
+  },
+  voicePlayBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  voicePlayBtnActive: {
+    backgroundColor: colors.selected,
+    borderColor: colors.selected,
+  },
+  voicePreviewInfo: {
+    flex: 1,
+  },
+  voicePreviewDuration: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  voicePreviewDate: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  voiceMoodBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+  },
+  voiceMoodText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 10,
+  },
+  voiceEmptyWrap: {
+    alignItems: 'center',
+    paddingBottom: spacing.md,
+  },
+  voiceEmptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceWarm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  voiceEmptyBtnText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.textPrimary,
   },
   pressed: {
     opacity: 0.9,

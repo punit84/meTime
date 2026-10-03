@@ -12,7 +12,7 @@ export type MoodConfig = {
   accent: string;
 };
 
-export type NeedId = 'mirror' | 'skin-care' | 'write' | 'listen' | 'games';
+export type NeedId = 'mirror' | 'skin-care' | 'write' | 'listen' | 'soft-talk' | 'games';
 
 export type NeedConfig = {
   id: NeedId;

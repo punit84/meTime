@@ -27,16 +27,20 @@ import type {
   MoodEntry,
   MoodType,
   UserProfile,
+  VoiceEntry,
 } from './types';
 import { DEFAULT_PREFERENCES } from './types';
 import {
   completeOnboarding,
   deleteMirrorEntry,
+  deleteVoiceEntry,
   getMirrorEntries,
+  getVoiceEntries,
   initializeApp,
   saveMirrorEntry,
   savePreferences,
   saveTodayMood,
+  saveVoiceEntry,
   updateProfileName,
 } from './storage';
 
@@ -49,6 +53,7 @@ type AppState = {
   todayMood: MoodEntry | null;
   preferences: AppPreferences;
   mirrorEntries: MirrorEntry[];
+  voiceEntries: VoiceEntry[];
 };
 
 const INITIAL_STATE: AppState = {
@@ -64,6 +69,7 @@ const INITIAL_STATE: AppState = {
   todayMood: null,
   preferences: { ...DEFAULT_PREFERENCES },
   mirrorEntries: [],
+  voiceEntries: [],
 };
 
 // ─── Actions ─────────────────────────────────────────────
@@ -76,6 +82,7 @@ type Action =
         todayMood: MoodEntry | null;
         preferences: AppPreferences;
         mirrorEntries: MirrorEntry[];
+        voiceEntries: VoiceEntry[];
         needsOnboarding: boolean;
       };
     }
@@ -85,7 +92,10 @@ type Action =
   | { type: 'COMPLETE_ONBOARDING'; payload: UserProfile }
   | { type: 'SET_MIRROR_ENTRIES'; payload: MirrorEntry[] }
   | { type: 'ADD_MIRROR_ENTRY'; payload: MirrorEntry }
-  | { type: 'REMOVE_MIRROR_ENTRY'; payload: string };
+  | { type: 'REMOVE_MIRROR_ENTRY'; payload: string }
+  | { type: 'SET_VOICE_ENTRIES'; payload: VoiceEntry[] }
+  | { type: 'ADD_VOICE_ENTRY'; payload: VoiceEntry }
+  | { type: 'REMOVE_VOICE_ENTRY'; payload: string };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -97,6 +107,7 @@ function reducer(state: AppState, action: Action): AppState {
         todayMood: action.payload.todayMood,
         preferences: action.payload.preferences,
         mirrorEntries: action.payload.mirrorEntries,
+        voiceEntries: action.payload.voiceEntries,
         needsOnboarding: action.payload.needsOnboarding,
       };
     case 'SET_USER':
@@ -122,6 +133,18 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         mirrorEntries: state.mirrorEntries.filter((e) => e.id !== action.payload),
+      };
+    case 'SET_VOICE_ENTRIES':
+      return { ...state, voiceEntries: action.payload };
+    case 'ADD_VOICE_ENTRY':
+      return {
+        ...state,
+        voiceEntries: [action.payload, ...state.voiceEntries],
+      };
+    case 'REMOVE_VOICE_ENTRY':
+      return {
+        ...state,
+        voiceEntries: state.voiceEntries.filter((e) => e.id !== action.payload),
       };
     default:
       return state;
@@ -149,6 +172,17 @@ type AppContextValue = AppState & {
   removeMirrorEntry: (id: string) => Promise<void>;
   /** Reload all mirror entries from storage. */
   refreshMirrorEntries: () => Promise<void>;
+  /** Add a voice note memory to Soft Talk. */
+  addVoiceEntry: (data: {
+    uri: string;
+    durationMs: number;
+    mood?: MoodType | null;
+    title?: string | null;
+  }) => Promise<VoiceEntry>;
+  /** Remove a voice note by ID. */
+  removeVoiceEntry: (id: string) => Promise<void>;
+  /** Reload all voice entries from storage. */
+  refreshVoiceEntries: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -172,6 +206,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               todayMood: data.todayMood,
               preferences: data.preferences,
               mirrorEntries: data.mirrorEntries,
+              voiceEntries: data.voiceEntries,
               needsOnboarding: data.needsOnboarding,
             },
           });
@@ -188,6 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               todayMood: null,
               preferences: { ...DEFAULT_PREFERENCES },
               mirrorEntries: [],
+              voiceEntries: [],
               needsOnboarding: true,
             },
           });
@@ -238,6 +274,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_MIRROR_ENTRIES', payload: entries });
   }, []);
 
+  const addVoiceEntry = useCallback(
+    async (data: {
+      uri: string;
+      durationMs: number;
+      mood?: MoodType | null;
+      title?: string | null;
+    }) => {
+      const entry = await saveVoiceEntry(data);
+      dispatch({ type: 'ADD_VOICE_ENTRY', payload: entry });
+      return entry;
+    },
+    [],
+  );
+
+  const removeVoiceEntry = useCallback(async (id: string) => {
+    await deleteVoiceEntry(id);
+    dispatch({ type: 'REMOVE_VOICE_ENTRY', payload: id });
+  }, []);
+
+  const refreshVoiceEntries = useCallback(async () => {
+    const entries = await getVoiceEntries();
+    dispatch({ type: 'SET_VOICE_ENTRIES', payload: entries });
+  }, []);
+
   const value = useMemo<AppContextValue>(
     () => ({
       ...state,
@@ -248,6 +308,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addMirrorEntry,
       removeMirrorEntry,
       refreshMirrorEntries,
+      addVoiceEntry,
+      removeVoiceEntry,
+      refreshVoiceEntries,
     }),
     [
       state,
@@ -258,6 +321,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addMirrorEntry,
       removeMirrorEntry,
       refreshMirrorEntries,
+      addVoiceEntry,
+      removeVoiceEntry,
+      refreshVoiceEntries,
     ],
   );
 

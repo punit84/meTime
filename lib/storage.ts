@@ -14,6 +14,7 @@ import type {
   MoodEntry,
   MoodType,
   UserProfile,
+  VoiceEntry,
 } from './types';
 import { DEFAULT_PREFERENCES, MOOD_VALUES, STORAGE_VERSION } from './types';
 
@@ -26,6 +27,7 @@ const KEYS = {
   todayMood: '@metime/mood-today',
   moodHistory: '@metime/mood-history',
   mirror: '@metime/mirror-entries',
+  voice: '@metime/voice-entries',
   // Legacy keys kept for possible future migration
   strengths: '@metime/strengths',
   growth: '@metime/growth',
@@ -345,6 +347,67 @@ export async function clearMirrorEntries(): Promise<void> {
   await AsyncStorage.removeItem(KEYS.mirror);
 }
 
+// ─── Voice Entries (Soft Talk) ───────────────────────────
+
+function isValidVoiceEntry(item: unknown): item is VoiceEntry {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.uri === 'string' &&
+    typeof obj.durationMs === 'number' &&
+    typeof obj.createdAt === 'string' &&
+    (obj.mood === undefined || obj.mood === null || isValidMood(obj.mood)) &&
+    (obj.title === undefined || obj.title === null || typeof obj.title === 'string')
+  );
+}
+
+export async function getVoiceEntries(): Promise<VoiceEntry[]> {
+  const raw = await readJson<unknown[]>(KEYS.voice, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidVoiceEntry);
+}
+
+export async function saveVoiceEntry(data: {
+  uri: string;
+  durationMs: number;
+  mood?: MoodType | null;
+  title?: string | null;
+}): Promise<VoiceEntry> {
+  const now = new Date().toISOString();
+  const entry: VoiceEntry = {
+    id: `voice_${generateId()}`,
+    uri: data.uri,
+    durationMs: data.durationMs,
+    createdAt: now,
+    mood: data.mood || null,
+    title: data.title || null,
+  };
+
+  const existing = await getVoiceEntries();
+  const updated = [entry, ...existing];
+  await writeJson(KEYS.voice, updated);
+  return entry;
+}
+
+export async function deleteVoiceEntry(id: string): Promise<void> {
+  const existing = await getVoiceEntries();
+  const entryToDelete = existing.find((e) => e.id === id);
+
+  if (entryToDelete) {
+    await safeDeleteFile(entryToDelete.uri);
+  }
+
+  const updated = existing.filter((e) => e.id !== id);
+  await writeJson(KEYS.voice, updated);
+}
+
+export async function clearVoiceEntries(): Promise<void> {
+  const existing = await getVoiceEntries();
+  await Promise.all(existing.map((e) => safeDeleteFile(e.uri)));
+  await AsyncStorage.removeItem(KEYS.voice);
+}
+
 // ─── Initialize ──────────────────────────────────────────
 
 export type AppInitData = {
@@ -352,6 +415,7 @@ export type AppInitData = {
   todayMood: MoodEntry | null;
   preferences: AppPreferences;
   mirrorEntries: MirrorEntry[];
+  voiceEntries: VoiceEntry[];
   needsOnboarding: boolean;
 };
 
@@ -362,18 +426,21 @@ export type AppInitData = {
 export async function initializeApp(): Promise<AppInitData> {
   await ensureStorageVersion();
 
-  const [profile, todayMood, preferences, mirrorEntries] = await Promise.all([
-    getProfile(),
-    getTodayMood(),
-    getPreferences(),
-    getMirrorEntries(),
-  ]);
+  const [profile, todayMood, preferences, mirrorEntries, voiceEntries] =
+    await Promise.all([
+      getProfile(),
+      getTodayMood(),
+      getPreferences(),
+      getMirrorEntries(),
+      getVoiceEntries(),
+    ]);
 
   return {
     profile,
     todayMood,
     preferences,
     mirrorEntries,
+    voiceEntries,
     needsOnboarding: !profile.onboardingComplete,
   };
 }
@@ -383,10 +450,16 @@ export async function initializeApp(): Promise<AppInitData> {
 /** Clear all Me Time data. Only available in development. */
 export async function clearAllData(): Promise<void> {
   if (!__DEV__) return;
-  // Clean up mirror files before wiping keys
+  // Clean up media files before wiping keys
   try {
-    const existing = await getMirrorEntries();
-    await Promise.all(existing.map((e) => safeDeleteFile(e.uri)));
+    const [mirror, voice] = await Promise.all([
+      getMirrorEntries(),
+      getVoiceEntries(),
+    ]);
+    await Promise.all([
+      ...mirror.map((e) => safeDeleteFile(e.uri)),
+      ...voice.map((e) => safeDeleteFile(e.uri)),
+    ]);
   } catch {
     // Ignore cleanup error in dev
   }

@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,14 +88,13 @@ type NeedSectionProps = {
 
 export function NeedSection({ needs }: NeedSectionProps) {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isNarrow = width < 520;
 
   const large = needs.filter((n) => n.size === 'large');
   const small = needs.filter((n) => n.size === 'small');
 
   return (
     <View style={styles.section}>
+      {/* Top 2-Column: Mirror | Skin Care */}
       <View style={styles.largeRow}>
         {large.map((need) => (
           <View key={need.id} style={styles.largeWrap}>
@@ -111,46 +109,32 @@ export function NeedSection({ needs }: NeedSectionProps) {
         ))}
       </View>
 
-      {isNarrow ? (
-        <View style={styles.narrowContainer}>
-          <View style={styles.smallRow}>
-            {small.slice(0, 2).map((need) => (
-              <View key={need.id} style={styles.smallWrap}>
-                <ImageFeatureCard
-                  title={need.title}
-                  description={need.description}
-                  image={need.image}
-                  onPress={() => router.push(need.href)}
-                />
-              </View>
-            ))}
+      {/* Middle 2-Column: Write | Listen */}
+      <View style={styles.smallRow}>
+        {small.slice(0, 2).map((need) => (
+          <View key={need.id} style={styles.smallWrap}>
+            <ImageFeatureCard
+              title={need.title}
+              description={need.description}
+              image={need.image}
+              onPress={() => router.push(need.href)}
+            />
           </View>
-          {small.slice(2).map((need) => (
-            <View key={need.id} style={styles.fullWidthWrap}>
-              <ImageFeatureCard
-                wide
-                title={need.title}
-                description={need.description}
-                image={need.image}
-                onPress={() => router.push(need.href)}
-              />
-            </View>
-          ))}
+        ))}
+      </View>
+
+      {/* Bottom Wide Cards: Soft Talk, then Games */}
+      {small.slice(2).map((need) => (
+        <View key={need.id} style={styles.fullWidthWrap}>
+          <ImageFeatureCard
+            wide
+            title={need.title}
+            description={need.description}
+            image={need.image}
+            onPress={() => router.push(need.href)}
+          />
         </View>
-      ) : (
-        <View style={styles.smallRow}>
-          {small.map((need) => (
-            <View key={need.id} style={styles.smallWrap}>
-              <ImageFeatureCard
-                title={need.title}
-                description={need.description}
-                image={need.image}
-                onPress={() => router.push(need.href)}
-              />
-            </View>
-          ))}
-        </View>
-      )}
+      ))}
     </View>
   );
 }

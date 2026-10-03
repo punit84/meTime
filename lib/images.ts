@@ -11,6 +11,7 @@ export const images = {
     skincare: require('../assets/images/home/skincare.jpg'),
     write: require('../assets/images/home/write.jpg'),
     listen: require('../assets/images/home/listen.jpg'),
+    softTalk: require('../assets/images/soft-talk/soft-talk.jpg'),
     games: require('../assets/images/home/games.jpg'),
   },
   mirror: {
@@ -25,6 +26,9 @@ export const images = {
   listen: {
     hero: appImages.listenHero,
     playlist: appImages.listenHero,
+  },
+  softTalk: {
+    hero: require('../assets/images/soft-talk/soft-talk.jpg'),
   },
   games: {
     hero: require('../assets/images/games/hero.jpg'),

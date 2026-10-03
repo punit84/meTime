@@ -81,6 +81,8 @@ function InnerLayout() {
       <Stack.Screen name="mirror/viewer" options={{ animation: 'fade' }} />
       <Stack.Screen name="skin-care" />
       <Stack.Screen name="write" />
+      <Stack.Screen name="soft-talk" />
+      <Stack.Screen name="soft-talk/voice" />
       <Stack.Screen name="games" />
       <Stack.Screen name="+not-found" />
     </Stack>

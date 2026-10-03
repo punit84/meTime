@@ -168,6 +168,11 @@ export const FEATURE_ACTIONS: Record<string, FeatureAction[]> = {
     { id: 'photo', title: 'Add Photo', subtitle: 'Keep a visual memory' },
     { id: 'notes', title: 'My Private Notes', subtitle: 'Short thoughts, safely held' },
   ],
+  'soft-talk': [
+    { id: 'record', title: 'Record a Voice Note', subtitle: 'Speak freely and privately' },
+    { id: 'notes', title: 'My Voice Notes', subtitle: 'Listen back to yourself' },
+    { id: 'prompts', title: 'Gentle Prompts', subtitle: 'Questions to speak into' },
+  ],
   games: [
     { id: 'puzzle', title: 'Puzzle', subtitle: 'A slow, soothing puzzle' },
     { id: 'memory', title: 'Memory', subtitle: 'Gentle matching play' },

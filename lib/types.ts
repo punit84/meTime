@@ -38,6 +38,17 @@ export type MirrorEntry = {
   mood?: MoodType | null;
 };
 
+// ─── Voice Notes (Soft Talk) ─────────────────────────────
+
+export type VoiceEntry = {
+  id: string;
+  uri: string;
+  durationMs: number;
+  createdAt: string; // ISO 8601
+  mood?: MoodType | null;
+  title?: string | null;
+};
+
 // ─── User Profile ────────────────────────────────────────
 
 export type UserProfile = {

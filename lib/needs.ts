@@ -35,6 +35,14 @@ export const NEEDS: NeedConfig[] = [
     size: 'small',
   },
   {
+    id: 'soft-talk',
+    title: 'Soft Talk',
+    description: 'Say what you need to say.',
+    href: '/soft-talk',
+    image: images.home.softTalk,
+    size: 'small',
+  },
+  {
     id: 'games',
     title: 'Games',
     description: 'Take a tiny break.',
