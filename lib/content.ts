@@ -28,7 +28,15 @@ export type SettingsItem = {
   id: string;
   title: string;
   subtitle: string;
-  icon: 'person-outline' | 'lock-closed-outline' | 'notifications-outline' | 'color-palette-outline' | 'language-outline' | 'help-circle-outline' | 'information-circle-outline';
+  icon:
+    | 'person-outline'
+    | 'lock-closed-outline'
+    | 'notifications-outline'
+    | 'color-palette-outline'
+    | 'language-outline'
+    | 'help-circle-outline'
+    | 'information-circle-outline'
+    | 'time-outline';
 };
 
 export type FeatureAction = {

@@ -73,6 +73,144 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   notificationsEnabled: true,
 };
 
+// ─── Skin Care ───────────────────────────────────────────
+
+export type SkinCarePeriod = 'morning' | 'evening';
+
+export type SkinCareCategory =
+  | 'cleanser'
+  | 'toner'
+  | 'serum'
+  | 'treatment'
+  | 'moisturizer'
+  | 'sunscreen'
+  | 'eye-care'
+  | 'other';
+
+export const SKIN_CARE_CATEGORIES: readonly SkinCareCategory[] = [
+  'cleanser',
+  'toner',
+  'serum',
+  'treatment',
+  'moisturizer',
+  'sunscreen',
+  'eye-care',
+  'other',
+] as const;
+
+export type SkinCareStep = {
+  id: string;
+  period: SkinCarePeriod;
+  name: string;
+  productName?: string | null;
+  notes?: string | null;
+  category: SkinCareCategory;
+  sortOrder: number;
+};
+
+export type SkinCareDayRecord = {
+  date: string; // YYYY-MM-DD local
+  completedStepIds: string[];
+};
+
+export type SkinCareReminders = {
+  morningEnabled: boolean;
+  eveningEnabled: boolean;
+  morningTime: string; // HH:mm
+  eveningTime: string; // HH:mm
+};
+
+export type SkinCareRoutine = {
+  configured: boolean;
+  steps: SkinCareStep[];
+  reminders: SkinCareReminders;
+};
+
+export const DEFAULT_SKIN_CARE_REMINDERS: SkinCareReminders = {
+  morningEnabled: false,
+  eveningEnabled: false,
+  morningTime: '08:00',
+  eveningTime: '21:00',
+};
+
+export const EMPTY_SKIN_CARE_ROUTINE: SkinCareRoutine = {
+  configured: false,
+  steps: [],
+  reminders: { ...DEFAULT_SKIN_CARE_REMINDERS },
+};
+
+// ─── Listen / Music ──────────────────────────────────────
+
+/** Listen mood categories — separate from Home MoodType. */
+export type MusicCategoryId =
+  | 'feel-good'
+  | 'calm'
+  | 'cry'
+  | 'focus'
+  | 'sleep'
+  | 'confidence';
+
+export const MUSIC_CATEGORY_IDS: readonly MusicCategoryId[] = [
+  'feel-good',
+  'calm',
+  'cry',
+  'focus',
+  'sleep',
+  'confidence',
+] as const;
+
+export type MusicTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  albumName?: string;
+  albumImage?: string;
+  durationMs?: number;
+  spotifyUrl?: string;
+  previewUrl?: string | null;
+  uri?: string;
+};
+
+export type MusicArtist = {
+  id: string;
+  name: string;
+  image?: string;
+  spotifyUrl?: string;
+};
+
+export type MusicAlbum = {
+  id: string;
+  name: string;
+  artist: string;
+  image?: string;
+  spotifyUrl?: string;
+};
+
+export type MusicPlaylist = {
+  id: string;
+  name: string;
+  image?: string;
+  spotifyUrl?: string;
+  description?: string;
+};
+
+export type MusicSearchResults = {
+  tracks: MusicTrack[];
+  artists: MusicArtist[];
+  albums: MusicAlbum[];
+  playlists: MusicPlaylist[];
+};
+
+export type RecentlyPlayedTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  albumImage?: string;
+  spotifyUrl?: string;
+  categoryId?: MusicCategoryId | null;
+  playedAt: string; // ISO
+};
+
 // ─── Storage Meta ────────────────────────────────────────
 
 export const STORAGE_VERSION = 1;

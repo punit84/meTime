@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   CormorantGaramond_600SemiBold,
@@ -15,6 +15,7 @@ import {
 } from '@expo-google-fonts/outfit';
 import { AppText } from '@/components/AppText';
 import { AppProvider, useApp } from '@/lib/AppProvider';
+import { MusicPlayerProvider } from '@/lib/MusicPlayerProvider';
 import { colors, fonts } from '@/lib/theme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -38,7 +39,7 @@ function InnerLayout() {
     if (needsOnboarding && !inOnboarding) {
       router.replace('/onboarding');
     } else if (!needsOnboarding && inOnboarding) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as Href);
     }
   }, [isReady, needsOnboarding, segments, router]);
 
@@ -80,9 +81,14 @@ function InnerLayout() {
       <Stack.Screen name="mirror/gallery" />
       <Stack.Screen name="mirror/viewer" options={{ animation: 'fade' }} />
       <Stack.Screen name="skin-care" />
+      <Stack.Screen name="skin-care/edit" />
+      <Stack.Screen name="skin-care/history" />
       <Stack.Screen name="write" />
       <Stack.Screen name="soft-talk" />
       <Stack.Screen name="soft-talk/voice" />
+      <Stack.Screen name="music/category" />
+      <Stack.Screen name="music/search" />
+      <Stack.Screen name="music/player" />
       <Stack.Screen name="games" />
       <Stack.Screen name="+not-found" />
     </Stack>
@@ -115,7 +121,9 @@ export default function RootLayout() {
 
   return (
     <AppProvider>
-      <InnerLayout />
+      <MusicPlayerProvider>
+        <InnerLayout />
+      </MusicPlayerProvider>
     </AppProvider>
   );
 }

@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# local tooling (portable Node, etc.)
+.tools/
+
 # Expo
 .expo/
 dist/
@@ -31,7 +34,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files / secrets
+.env
 .env*.local
 
 # typescript

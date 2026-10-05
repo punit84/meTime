@@ -12,12 +12,24 @@ import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { SettingsRow } from '@/components/SettingsRow';
 import { useApp } from '@/lib/AppProvider';
+import {
+  REMINDER_TIME_OPTIONS,
+  formatReminderTime,
+} from '@/lib/skinCare';
 import { clearAllData } from '@/lib/storage';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, preferences, updatePreferences } = useApp();
+  const {
+    user,
+    preferences,
+    updatePreferences,
+    skinCareRoutine,
+    updateSkinCarePreferences,
+  } = useApp();
+
+  const reminders = skinCareRoutine.reminders;
 
   const handleNotificationsToggle = async (val: boolean) => {
     await updatePreferences({
@@ -37,6 +49,18 @@ export default function SettingsScreen() {
         { text: 'Cancel', style: 'cancel' },
       ],
     );
+  };
+
+  const cycleReminderTime = (which: 'morning' | 'evening') => {
+    const current =
+      which === 'morning' ? reminders.morningTime : reminders.eveningTime;
+    const idx = REMINDER_TIME_OPTIONS.findIndex((t) => t === current);
+    const next =
+      REMINDER_TIME_OPTIONS[(idx + 1 + REMINDER_TIME_OPTIONS.length) % REMINDER_TIME_OPTIONS.length];
+    updateSkinCarePreferences({
+      ...reminders,
+      ...(which === 'morning' ? { morningTime: next } : { eveningTime: next }),
+    });
   };
 
   const handleClearData = () => {
@@ -129,6 +153,69 @@ export default function SettingsScreen() {
           icon: 'color-palette-outline',
         }}
         onPress={handleAppearanceCycle}
+      />
+
+      <AppText muted style={styles.sectionHeader}>SKIN CARE REMINDERS</AppText>
+      <AppText muted style={styles.reminderHint}>
+        Preferences stay on this device. Push delivery can arrive later without changing your ritual.
+      </AppText>
+
+      <View style={styles.switchRow}>
+        <View style={styles.iconWrap}>
+          <Ionicons name="sunny-outline" size={18} color={colors.icon} />
+        </View>
+        <View style={styles.switchCopy}>
+          <AppText style={styles.rowTitle}>Morning reminder</AppText>
+          <AppText muted style={styles.rowSubtitle}>
+            {formatReminderTime(reminders.morningTime)}
+          </AppText>
+        </View>
+        <Switch
+          value={reminders.morningEnabled}
+          onValueChange={(val) =>
+            updateSkinCarePreferences({ ...reminders, morningEnabled: val })
+          }
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={colors.white}
+        />
+      </View>
+      <SettingsRow
+        item={{
+          id: 'morning-time',
+          title: 'Morning time',
+          subtitle: `${formatReminderTime(reminders.morningTime)} · tap to change`,
+          icon: 'time-outline',
+        }}
+        onPress={() => cycleReminderTime('morning')}
+      />
+
+      <View style={styles.switchRow}>
+        <View style={styles.iconWrap}>
+          <Ionicons name="moon-outline" size={18} color={colors.icon} />
+        </View>
+        <View style={styles.switchCopy}>
+          <AppText style={styles.rowTitle}>Evening reminder</AppText>
+          <AppText muted style={styles.rowSubtitle}>
+            {formatReminderTime(reminders.eveningTime)}
+          </AppText>
+        </View>
+        <Switch
+          value={reminders.eveningEnabled}
+          onValueChange={(val) =>
+            updateSkinCarePreferences({ ...reminders, eveningEnabled: val })
+          }
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={colors.white}
+        />
+      </View>
+      <SettingsRow
+        item={{
+          id: 'evening-time',
+          title: 'Evening time',
+          subtitle: `${formatReminderTime(reminders.eveningTime)} · tap to change`,
+          icon: 'time-outline',
+        }}
+        onPress={() => cycleReminderTime('evening')}
       />
 
       <AppText muted style={styles.sectionHeader}>PRIVACY & CARE</AppText>
@@ -241,6 +328,13 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
     marginLeft: 2,
+  },
+  reminderHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: spacing.sm,
+    marginLeft: 2,
+    maxWidth: 340,
   },
   switchRow: {
     flexDirection: 'row',

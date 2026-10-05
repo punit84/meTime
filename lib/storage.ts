@@ -13,10 +13,27 @@ import type {
   MirrorMediaType,
   MoodEntry,
   MoodType,
+  MusicCategoryId,
+  RecentlyPlayedTrack,
+  SkinCareCategory,
+  SkinCareDayRecord,
+  SkinCarePeriod,
+  SkinCareReminders,
+  SkinCareRoutine,
+  SkinCareStep,
   UserProfile,
   VoiceEntry,
 } from './types';
-import { DEFAULT_PREFERENCES, MOOD_VALUES, STORAGE_VERSION } from './types';
+import {
+  DEFAULT_PREFERENCES,
+  DEFAULT_SKIN_CARE_REMINDERS,
+  EMPTY_SKIN_CARE_ROUTINE,
+  MUSIC_CATEGORY_IDS,
+  MOOD_VALUES,
+  SKIN_CARE_CATEGORIES,
+  STORAGE_VERSION,
+} from './types';
+import { createDefaultSteps, localDateKey } from './skinCare';
 
 // ─── Storage Keys ────────────────────────────────────────
 
@@ -28,6 +45,11 @@ const KEYS = {
   moodHistory: '@metime/mood-history',
   mirror: '@metime/mirror-entries',
   voice: '@metime/voice-entries',
+  skinCareRoutine: '@metime/skin-care-routine',
+  skinCareToday: '@metime/skin-care-today',
+  skinCareHistory: '@metime/skin-care-history',
+  musicRecentSearches: '@metime/music-recent-searches',
+  musicRecentlyPlayed: '@metime/music-recently-played',
   // Legacy keys kept for possible future migration
   strengths: '@metime/strengths',
   growth: '@metime/growth',
@@ -408,6 +430,442 @@ export async function clearVoiceEntries(): Promise<void> {
   await AsyncStorage.removeItem(KEYS.voice);
 }
 
+// ─── Skin Care ───────────────────────────────────────────
+
+const HISTORY_LIMIT = 60;
+
+function isValidPeriod(value: unknown): value is SkinCarePeriod {
+  return value === 'morning' || value === 'evening';
+}
+
+function isValidCategory(value: unknown): value is SkinCareCategory {
+  return (
+    typeof value === 'string' &&
+    (SKIN_CARE_CATEGORIES as readonly string[]).includes(value)
+  );
+}
+
+function isValidTimeString(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
+function isValidSkinCareStep(item: unknown): item is SkinCareStep {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    isValidPeriod(obj.period) &&
+    typeof obj.name === 'string' &&
+    obj.name.trim().length > 0 &&
+    isValidCategory(obj.category) &&
+    typeof obj.sortOrder === 'number' &&
+    (obj.productName === undefined ||
+      obj.productName === null ||
+      typeof obj.productName === 'string') &&
+    (obj.notes === undefined ||
+      obj.notes === null ||
+      typeof obj.notes === 'string')
+  );
+}
+
+function normalizeReminders(raw: unknown): SkinCareReminders {
+  if (!raw || typeof raw !== 'object') {
+    return { ...DEFAULT_SKIN_CARE_REMINDERS };
+  }
+  const obj = raw as Record<string, unknown>;
+  return {
+    morningEnabled:
+      typeof obj.morningEnabled === 'boolean'
+        ? obj.morningEnabled
+        : DEFAULT_SKIN_CARE_REMINDERS.morningEnabled,
+    eveningEnabled:
+      typeof obj.eveningEnabled === 'boolean'
+        ? obj.eveningEnabled
+        : DEFAULT_SKIN_CARE_REMINDERS.eveningEnabled,
+    morningTime: isValidTimeString(obj.morningTime)
+      ? obj.morningTime
+      : DEFAULT_SKIN_CARE_REMINDERS.morningTime,
+    eveningTime: isValidTimeString(obj.eveningTime)
+      ? obj.eveningTime
+      : DEFAULT_SKIN_CARE_REMINDERS.eveningTime,
+  };
+}
+
+function isValidDayRecord(item: unknown): item is SkinCareDayRecord {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(obj.date) &&
+    Array.isArray(obj.completedStepIds) &&
+    obj.completedStepIds.every((id) => typeof id === 'string')
+  );
+}
+
+export async function getSkinCareRoutine(): Promise<SkinCareRoutine> {
+  const raw = await readJson<unknown>(KEYS.skinCareRoutine, null);
+  if (!raw || typeof raw !== 'object') {
+    return { ...EMPTY_SKIN_CARE_ROUTINE, reminders: { ...DEFAULT_SKIN_CARE_REMINDERS } };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const steps = Array.isArray(obj.steps)
+    ? obj.steps.filter(isValidSkinCareStep)
+    : [];
+
+  return {
+    configured: typeof obj.configured === 'boolean' ? obj.configured : steps.length > 0,
+    steps,
+    reminders: normalizeReminders(obj.reminders),
+  };
+}
+
+async function saveSkinCareRoutine(routine: SkinCareRoutine): Promise<void> {
+  await writeJson(KEYS.skinCareRoutine, routine);
+}
+
+export async function getSkinCareHistory(): Promise<SkinCareDayRecord[]> {
+  const raw = await readJson<unknown[]>(KEYS.skinCareHistory, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidDayRecord).slice(0, HISTORY_LIMIT);
+}
+
+async function saveSkinCareHistory(history: SkinCareDayRecord[]): Promise<void> {
+  await writeJson(KEYS.skinCareHistory, history.slice(0, HISTORY_LIMIT));
+}
+
+async function upsertHistoryRecord(record: SkinCareDayRecord): Promise<SkinCareDayRecord[]> {
+  const history = await getSkinCareHistory();
+  const without = history.filter((h) => h.date !== record.date);
+  const updated = [record, ...without].sort((a, b) => b.date.localeCompare(a.date));
+  await saveSkinCareHistory(updated);
+  return updated;
+}
+
+/**
+ * Returns today's completion. If the calendar day has rolled over,
+ * starts a fresh empty record without touching the routine.
+ */
+export async function getSkinCareToday(): Promise<SkinCareDayRecord> {
+  const today = localDateKey();
+  const raw = await readJson<unknown>(KEYS.skinCareToday, null);
+
+  if (isValidDayRecord(raw) && raw.date === today) {
+    return {
+      date: raw.date,
+      completedStepIds: [...new Set(raw.completedStepIds)],
+    };
+  }
+
+  // Preserve previous day's record in history before rolling
+  if (isValidDayRecord(raw) && raw.date !== today) {
+    await upsertHistoryRecord({
+      date: raw.date,
+      completedStepIds: [...new Set(raw.completedStepIds)],
+    });
+  }
+
+  const fresh: SkinCareDayRecord = { date: today, completedStepIds: [] };
+  await writeJson(KEYS.skinCareToday, fresh);
+  return fresh;
+}
+
+export async function createSkinCareRoutine(): Promise<{
+  routine: SkinCareRoutine;
+  today: SkinCareDayRecord;
+}> {
+  const existing = await getSkinCareRoutine();
+  if (existing.configured && existing.steps.length > 0) {
+    const today = await getSkinCareToday();
+    return { routine: existing, today };
+  }
+
+  const routine: SkinCareRoutine = {
+    configured: true,
+    steps: createDefaultSteps(),
+    reminders: existing.reminders ?? { ...DEFAULT_SKIN_CARE_REMINDERS },
+  };
+  await saveSkinCareRoutine(routine);
+  const today = await getSkinCareToday();
+  return { routine, today };
+}
+
+export async function addSkinCareStep(data: {
+  period: SkinCarePeriod;
+  name: string;
+  productName?: string | null;
+  notes?: string | null;
+  category: SkinCareCategory;
+}): Promise<{ routine: SkinCareRoutine; step: SkinCareStep }> {
+  const routine = await getSkinCareRoutine();
+  const periodSteps = routine.steps.filter((s) => s.period === data.period);
+  const nextOrder =
+    periodSteps.length > 0
+      ? Math.max(...periodSteps.map((s) => s.sortOrder)) + 1
+      : 0;
+
+  const step: SkinCareStep = {
+    id: `skin_${generateId()}`,
+    period: data.period,
+    name: data.name.trim(),
+    productName: data.productName?.trim() || null,
+    notes: data.notes?.trim() || null,
+    category: data.category,
+    sortOrder: nextOrder,
+  };
+
+  const updated: SkinCareRoutine = {
+    ...routine,
+    configured: true,
+    steps: [...routine.steps, step],
+  };
+  await saveSkinCareRoutine(updated);
+  return { routine: updated, step };
+}
+
+export async function updateSkinCareStep(
+  id: string,
+  patch: Partial<{
+    period: SkinCarePeriod;
+    name: string;
+    productName: string | null;
+    notes: string | null;
+    category: SkinCareCategory;
+  }>,
+): Promise<SkinCareRoutine> {
+  const routine = await getSkinCareRoutine();
+  const updated: SkinCareRoutine = {
+    ...routine,
+    steps: routine.steps.map((step) => {
+      if (step.id !== id) return step;
+      return {
+        ...step,
+        period: patch.period ?? step.period,
+        name:
+          typeof patch.name === 'string' && patch.name.trim()
+            ? patch.name.trim()
+            : step.name,
+        productName:
+          patch.productName !== undefined
+            ? patch.productName?.trim() || null
+            : step.productName,
+        notes:
+          patch.notes !== undefined
+            ? patch.notes?.trim() || null
+            : step.notes,
+        category: patch.category ?? step.category,
+      };
+    }),
+  };
+  await saveSkinCareRoutine(updated);
+  return updated;
+}
+
+export async function deleteSkinCareStep(id: string): Promise<{
+  routine: SkinCareRoutine;
+  today: SkinCareDayRecord;
+  history: SkinCareDayRecord[];
+}> {
+  const routine = await getSkinCareRoutine();
+  const remaining = routine.steps.filter((s) => s.id !== id);
+
+  // Normalize sortOrder per period
+  const morning = remaining
+    .filter((s) => s.period === 'morning')
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((s, i) => ({ ...s, sortOrder: i }));
+  const evening = remaining
+    .filter((s) => s.period === 'evening')
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((s, i) => ({ ...s, sortOrder: i }));
+
+  const updated: SkinCareRoutine = {
+    ...routine,
+    configured: true,
+    steps: [...morning, ...evening],
+  };
+  await saveSkinCareRoutine(updated);
+
+  // Strip deleted id from today + history
+  const today = await getSkinCareToday();
+  const cleanedToday: SkinCareDayRecord = {
+    ...today,
+    completedStepIds: today.completedStepIds.filter((sid) => sid !== id),
+  };
+  await writeJson(KEYS.skinCareToday, cleanedToday);
+
+  const history = await getSkinCareHistory();
+  const cleanedHistory = history.map((h) => ({
+    ...h,
+    completedStepIds: h.completedStepIds.filter((sid) => sid !== id),
+  }));
+  await saveSkinCareHistory(cleanedHistory);
+
+  return { routine: updated, today: cleanedToday, history: cleanedHistory };
+}
+
+export async function reorderSkinCareSteps(
+  period: SkinCarePeriod,
+  orderedIds: string[],
+): Promise<SkinCareRoutine> {
+  const routine = await getSkinCareRoutine();
+  const other = routine.steps.filter((s) => s.period !== period);
+  const periodMap = new Map(
+    routine.steps.filter((s) => s.period === period).map((s) => [s.id, s]),
+  );
+
+  const reordered: SkinCareStep[] = [];
+  orderedIds.forEach((id, index) => {
+    const step = periodMap.get(id);
+    if (step) {
+      reordered.push({ ...step, sortOrder: index });
+      periodMap.delete(id);
+    }
+  });
+  // Append any missing steps that weren't in orderedIds
+  periodMap.forEach((step) => {
+    reordered.push({ ...step, sortOrder: reordered.length });
+  });
+
+  const updated: SkinCareRoutine = {
+    ...routine,
+    steps: [...other, ...reordered],
+  };
+  await saveSkinCareRoutine(updated);
+  return updated;
+}
+
+export async function toggleSkinCareStep(stepId: string): Promise<{
+  today: SkinCareDayRecord;
+  history: SkinCareDayRecord[];
+}> {
+  const routine = await getSkinCareRoutine();
+  if (!routine.steps.some((s) => s.id === stepId)) {
+    const today = await getSkinCareToday();
+    const history = await getSkinCareHistory();
+    return { today, history };
+  }
+
+  const today = await getSkinCareToday();
+  const has = today.completedStepIds.includes(stepId);
+  const completedStepIds = has
+    ? today.completedStepIds.filter((id) => id !== stepId)
+    : [...today.completedStepIds, stepId];
+
+  const updatedToday: SkinCareDayRecord = {
+    date: today.date,
+    completedStepIds,
+  };
+  await writeJson(KEYS.skinCareToday, updatedToday);
+  const history = await upsertHistoryRecord(updatedToday);
+  return { today: updatedToday, history };
+}
+
+export async function resetTodaySkinCare(): Promise<{
+  today: SkinCareDayRecord;
+  history: SkinCareDayRecord[];
+}> {
+  const today = localDateKey();
+  const fresh: SkinCareDayRecord = { date: today, completedStepIds: [] };
+  await writeJson(KEYS.skinCareToday, fresh);
+  const history = await upsertHistoryRecord(fresh);
+  return { today: fresh, history };
+}
+
+export async function updateSkinCareReminders(
+  reminders: SkinCareReminders,
+): Promise<SkinCareRoutine> {
+  const routine = await getSkinCareRoutine();
+  const updated: SkinCareRoutine = {
+    ...routine,
+    reminders: normalizeReminders(reminders),
+  };
+  await saveSkinCareRoutine(updated);
+  return updated;
+}
+
+// ─── Music (lightweight metadata only) ───────────────────
+
+const RECENT_SEARCH_LIMIT = 8;
+const RECENTLY_PLAYED_LIMIT = 12;
+
+function isValidMusicCategoryId(value: unknown): value is MusicCategoryId {
+  return (
+    typeof value === 'string' &&
+    (MUSIC_CATEGORY_IDS as readonly string[]).includes(value)
+  );
+}
+
+function isValidRecentlyPlayed(item: unknown): item is RecentlyPlayedTrack {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.title === 'string' &&
+    typeof obj.artist === 'string' &&
+    typeof obj.playedAt === 'string' &&
+    (obj.albumImage === undefined || typeof obj.albumImage === 'string') &&
+    (obj.spotifyUrl === undefined || typeof obj.spotifyUrl === 'string') &&
+    (obj.categoryId === undefined ||
+      obj.categoryId === null ||
+      isValidMusicCategoryId(obj.categoryId))
+  );
+}
+
+export async function getMusicRecentSearches(): Promise<string[]> {
+  const raw = await readJson<unknown[]>(KEYS.musicRecentSearches, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    .map((s) => s.trim())
+    .slice(0, RECENT_SEARCH_LIMIT);
+}
+
+export async function addMusicRecentSearch(query: string): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return getMusicRecentSearches();
+  const existing = await getMusicRecentSearches();
+  const updated = [
+    trimmed,
+    ...existing.filter((s) => s.toLowerCase() !== trimmed.toLowerCase()),
+  ].slice(0, RECENT_SEARCH_LIMIT);
+  await writeJson(KEYS.musicRecentSearches, updated);
+  return updated;
+}
+
+export async function getRecentlyPlayedTracks(): Promise<RecentlyPlayedTrack[]> {
+  const raw = await readJson<unknown[]>(KEYS.musicRecentlyPlayed, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidRecentlyPlayed).slice(0, RECENTLY_PLAYED_LIMIT);
+}
+
+export async function addRecentlyPlayedTrack(data: {
+  id: string;
+  title: string;
+  artist: string;
+  albumImage?: string;
+  spotifyUrl?: string;
+  categoryId?: MusicCategoryId | null;
+}): Promise<RecentlyPlayedTrack[]> {
+  const entry: RecentlyPlayedTrack = {
+    id: data.id,
+    title: data.title,
+    artist: data.artist,
+    albumImage: data.albumImage,
+    spotifyUrl: data.spotifyUrl,
+    categoryId: data.categoryId ?? null,
+    playedAt: new Date().toISOString(),
+  };
+  const existing = await getRecentlyPlayedTracks();
+  const updated = [
+    entry,
+    ...existing.filter((t) => t.id !== entry.id),
+  ].slice(0, RECENTLY_PLAYED_LIMIT);
+  await writeJson(KEYS.musicRecentlyPlayed, updated);
+  return updated;
+}
+
 // ─── Initialize ──────────────────────────────────────────
 
 export type AppInitData = {
@@ -416,6 +874,11 @@ export type AppInitData = {
   preferences: AppPreferences;
   mirrorEntries: MirrorEntry[];
   voiceEntries: VoiceEntry[];
+  skinCareRoutine: SkinCareRoutine;
+  skinCareToday: SkinCareDayRecord;
+  skinCareHistory: SkinCareDayRecord[];
+  recentlyPlayed: RecentlyPlayedTrack[];
+  musicRecentSearches: string[];
   needsOnboarding: boolean;
 };
 
@@ -426,14 +889,29 @@ export type AppInitData = {
 export async function initializeApp(): Promise<AppInitData> {
   await ensureStorageVersion();
 
-  const [profile, todayMood, preferences, mirrorEntries, voiceEntries] =
-    await Promise.all([
-      getProfile(),
-      getTodayMood(),
-      getPreferences(),
-      getMirrorEntries(),
-      getVoiceEntries(),
-    ]);
+  const [
+    profile,
+    todayMood,
+    preferences,
+    mirrorEntries,
+    voiceEntries,
+    skinCareRoutine,
+    skinCareToday,
+    skinCareHistory,
+    recentlyPlayed,
+    musicRecentSearches,
+  ] = await Promise.all([
+    getProfile(),
+    getTodayMood(),
+    getPreferences(),
+    getMirrorEntries(),
+    getVoiceEntries(),
+    getSkinCareRoutine(),
+    getSkinCareToday(),
+    getSkinCareHistory(),
+    getRecentlyPlayedTracks(),
+    getMusicRecentSearches(),
+  ]);
 
   return {
     profile,
@@ -441,6 +919,11 @@ export async function initializeApp(): Promise<AppInitData> {
     preferences,
     mirrorEntries,
     voiceEntries,
+    skinCareRoutine,
+    skinCareToday,
+    skinCareHistory,
+    recentlyPlayed,
+    musicRecentSearches,
     needsOnboarding: !profile.onboardingComplete,
   };
 }

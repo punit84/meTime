@@ -17,6 +17,7 @@ import { Screen } from '@/components/Screen';
 import { useApp } from '@/lib/AppProvider';
 import { MOODS } from '@/lib/moods';
 import { appImages } from '@/lib/images';
+import { periodProgress } from '@/lib/skinCare';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 import type { VoiceEntry } from '@/lib/types';
 
@@ -47,7 +48,14 @@ const OTHER_SPACE_SECTIONS = [
 
 export default function MySpaceScreen() {
   const router = useRouter();
-  const { todayMood, mirrorEntries, voiceEntries } = useApp();
+  const {
+    todayMood,
+    mirrorEntries,
+    voiceEntries,
+    skinCareRoutine,
+    skinCareToday,
+    recentlyPlayed,
+  } = useApp();
 
   // Audio preview playback in My Space
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
@@ -109,6 +117,19 @@ export default function MySpaceScreen() {
 
   const mirrorCount = mirrorEntries.length;
   const voiceCount = voiceEntries.length;
+
+  const skinConfigured =
+    skinCareRoutine.configured && skinCareRoutine.steps.length > 0;
+  const skinMorning = periodProgress(
+    skinCareRoutine.steps,
+    skinCareToday.completedStepIds,
+    'morning',
+  );
+  const skinEvening = periodProgress(
+    skinCareRoutine.steps,
+    skinCareToday.completedStepIds,
+    'evening',
+  );
 
   return (
     <Screen>
@@ -330,7 +351,118 @@ export default function MySpaceScreen() {
         )}
       </View>
 
-      {/* 3. Other Space sections with empty states */}
+      {/* 3. Listen — recently played (lightweight) */}
+      {recentlyPlayed.length > 0 && (
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionIconWrap, { backgroundColor: colors.surfaceCool }]}>
+              <Ionicons name="musical-notes-outline" size={16} color={colors.icon} />
+            </View>
+            <View style={styles.sectionTitleWrap}>
+              <AppText style={styles.sectionTitle}>Listen</AppText>
+              <AppText muted style={styles.sectionMeta}>
+                Recently played
+              </AppText>
+            </View>
+            <Pressable
+              onPress={() => router.push('/listen')}
+              style={({ pressed }) => [styles.viewAllBtn, pressed && styles.pressed]}
+            >
+              <AppText style={styles.viewAllText}>Open</AppText>
+              <Ionicons name="chevron-forward" size={13} color={colors.accentDeep} />
+            </Pressable>
+          </View>
+          <View style={styles.voiceList}>
+            {recentlyPlayed.slice(0, 3).map((item) => (
+              <View key={`${item.id}-${item.playedAt}`} style={styles.voicePreviewRow}>
+                {item.albumImage ? (
+                  <Image source={{ uri: item.albumImage }} style={styles.listenThumb} />
+                ) : (
+                  <View style={[styles.listenThumb, styles.listenThumbFallback]}>
+                    <Ionicons name="musical-notes-outline" size={14} color={colors.textMuted} />
+                  </View>
+                )}
+                <View style={styles.voicePreviewInfo}>
+                  <AppText style={styles.voicePreviewDuration} numberOfLines={1}>
+                    {item.title}
+                  </AppText>
+                  <AppText muted style={styles.voicePreviewDate} numberOfLines={1}>
+                    {item.artist}
+                  </AppText>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* 4. Skin Care Section Card */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIconWrap, { backgroundColor: colors.surfaceSage }]}>
+            <Ionicons name="sparkles-outline" size={16} color={colors.icon} />
+          </View>
+          <View style={styles.sectionTitleWrap}>
+            <AppText style={styles.sectionTitle}>Skin Care</AppText>
+            {skinConfigured && (
+              <AppText muted style={styles.sectionMeta}>
+                A little care, every day
+              </AppText>
+            )}
+          </View>
+        </View>
+
+        {!skinConfigured ? (
+          <View style={styles.voiceEmptyWrap}>
+            <EmptyState
+              icon="sparkles-outline"
+              title="Create your first routine."
+              subtitle="A soft morning and evening ritual, kept only on this device."
+            />
+            <Pressable
+              onPress={() => router.push('/skin-care')}
+              style={({ pressed }) => [styles.voiceEmptyBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="sparkles-outline" size={15} color={colors.textPrimary} />
+              <AppText style={styles.voiceEmptyBtnText}>Set up routine</AppText>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.skinCareBody}>
+            <View style={styles.skinCareRow}>
+              <AppText style={styles.skinCarePeriod}>Morning</AppText>
+              <AppText muted style={styles.skinCareCount}>
+                {skinMorning.total === 0
+                  ? '—'
+                  : `${skinMorning.completed}/${skinMorning.total} complete${
+                      skinMorning.done ? ' ✓' : ''
+                    }`}
+              </AppText>
+            </View>
+            <View style={styles.skinCareRow}>
+              <AppText style={styles.skinCarePeriod}>Evening</AppText>
+              <AppText muted style={styles.skinCareCount}>
+                {skinEvening.total === 0
+                  ? '—'
+                  : `${skinEvening.completed}/${skinEvening.total} complete${
+                      skinEvening.done ? ' ✓' : ''
+                    }`}
+              </AppText>
+            </View>
+            <Pressable
+              onPress={() => router.push('/skin-care')}
+              style={({ pressed }) => [styles.skinCareLink, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="View skin care routine"
+            >
+              <AppText style={styles.viewAllText}>View routine</AppText>
+              <Ionicons name="chevron-forward" size={13} color={colors.accentDeep} />
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      {/* 5. Other Space sections with empty states */}
       {OTHER_SPACE_SECTIONS.map((section) => (
         <View key={section.id} style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -587,6 +719,49 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 12,
     color: colors.textPrimary,
+  },
+  skinCareBody: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  skinCareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surfaceWarm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.sm,
+  },
+  skinCarePeriod: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  skinCareCount: {
+    fontSize: 12,
+  },
+  skinCareLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    gap: 2,
+    paddingTop: spacing.xs,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  listenThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    marginRight: spacing.sm,
+  },
+  listenThumbFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pressed: {
     opacity: 0.9,

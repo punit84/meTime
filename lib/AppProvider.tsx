@@ -5,6 +5,7 @@
  *   - user profile
  *   - current mood
  *   - preferences
+ *   - mirror / soft talk / skin care
  *   - initialization state
  *
  * All screens consume this context rather than loading
@@ -26,23 +27,48 @@ import type {
   MirrorMediaType,
   MoodEntry,
   MoodType,
+  MusicCategoryId,
+  RecentlyPlayedTrack,
+  SkinCareCategory,
+  SkinCareDayRecord,
+  SkinCarePeriod,
+  SkinCareReminders,
+  SkinCareRoutine,
+  SkinCareStep,
   UserProfile,
   VoiceEntry,
 } from './types';
-import { DEFAULT_PREFERENCES } from './types';
 import {
+  DEFAULT_PREFERENCES,
+  DEFAULT_SKIN_CARE_REMINDERS,
+  EMPTY_SKIN_CARE_ROUTINE,
+} from './types';
+import {
+  addMusicRecentSearch as storageAddMusicRecentSearch,
+  addRecentlyPlayedTrack as storageAddRecentlyPlayedTrack,
+  addSkinCareStep as storageAddSkinCareStep,
   completeOnboarding,
+  createSkinCareRoutine as storageCreateSkinCareRoutine,
   deleteMirrorEntry,
+  deleteSkinCareStep as storageDeleteSkinCareStep,
   deleteVoiceEntry,
   getMirrorEntries,
+  getSkinCareHistory,
+  getSkinCareToday,
   getVoiceEntries,
   initializeApp,
+  reorderSkinCareSteps as storageReorderSkinCareSteps,
+  resetTodaySkinCare as storageResetTodaySkinCare,
   saveMirrorEntry,
   savePreferences,
   saveTodayMood,
   saveVoiceEntry,
+  toggleSkinCareStep as storageToggleSkinCareStep,
   updateProfileName,
+  updateSkinCareReminders as storageUpdateSkinCareReminders,
+  updateSkinCareStep as storageUpdateSkinCareStep,
 } from './storage';
+import { localDateKey } from './skinCare';
 
 // ─── State Shape ─────────────────────────────────────────
 
@@ -54,6 +80,11 @@ type AppState = {
   preferences: AppPreferences;
   mirrorEntries: MirrorEntry[];
   voiceEntries: VoiceEntry[];
+  skinCareRoutine: SkinCareRoutine;
+  skinCareToday: SkinCareDayRecord;
+  skinCareHistory: SkinCareDayRecord[];
+  recentlyPlayed: RecentlyPlayedTrack[];
+  musicRecentSearches: string[];
 };
 
 const INITIAL_STATE: AppState = {
@@ -70,6 +101,14 @@ const INITIAL_STATE: AppState = {
   preferences: { ...DEFAULT_PREFERENCES },
   mirrorEntries: [],
   voiceEntries: [],
+  skinCareRoutine: {
+    ...EMPTY_SKIN_CARE_ROUTINE,
+    reminders: { ...DEFAULT_SKIN_CARE_REMINDERS },
+  },
+  skinCareToday: { date: localDateKey(), completedStepIds: [] },
+  skinCareHistory: [],
+  recentlyPlayed: [],
+  musicRecentSearches: [],
 };
 
 // ─── Actions ─────────────────────────────────────────────
@@ -83,6 +122,11 @@ type Action =
         preferences: AppPreferences;
         mirrorEntries: MirrorEntry[];
         voiceEntries: VoiceEntry[];
+        skinCareRoutine: SkinCareRoutine;
+        skinCareToday: SkinCareDayRecord;
+        skinCareHistory: SkinCareDayRecord[];
+        recentlyPlayed: RecentlyPlayedTrack[];
+        musicRecentSearches: string[];
         needsOnboarding: boolean;
       };
     }
@@ -95,7 +139,18 @@ type Action =
   | { type: 'REMOVE_MIRROR_ENTRY'; payload: string }
   | { type: 'SET_VOICE_ENTRIES'; payload: VoiceEntry[] }
   | { type: 'ADD_VOICE_ENTRY'; payload: VoiceEntry }
-  | { type: 'REMOVE_VOICE_ENTRY'; payload: string };
+  | { type: 'REMOVE_VOICE_ENTRY'; payload: string }
+  | { type: 'SET_SKIN_CARE_ROUTINE'; payload: SkinCareRoutine }
+  | {
+      type: 'SET_SKIN_CARE_PROGRESS';
+      payload: {
+        today: SkinCareDayRecord;
+        history: SkinCareDayRecord[];
+      };
+    }
+  | { type: 'SET_SKIN_CARE_HISTORY'; payload: SkinCareDayRecord[] }
+  | { type: 'SET_RECENTLY_PLAYED'; payload: RecentlyPlayedTrack[] }
+  | { type: 'SET_MUSIC_RECENT_SEARCHES'; payload: string[] };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -108,6 +163,11 @@ function reducer(state: AppState, action: Action): AppState {
         preferences: action.payload.preferences,
         mirrorEntries: action.payload.mirrorEntries,
         voiceEntries: action.payload.voiceEntries,
+        skinCareRoutine: action.payload.skinCareRoutine,
+        skinCareToday: action.payload.skinCareToday,
+        skinCareHistory: action.payload.skinCareHistory,
+        recentlyPlayed: action.payload.recentlyPlayed,
+        musicRecentSearches: action.payload.musicRecentSearches,
         needsOnboarding: action.payload.needsOnboarding,
       };
     case 'SET_USER':
@@ -146,6 +206,20 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         voiceEntries: state.voiceEntries.filter((e) => e.id !== action.payload),
       };
+    case 'SET_SKIN_CARE_ROUTINE':
+      return { ...state, skinCareRoutine: action.payload };
+    case 'SET_SKIN_CARE_PROGRESS':
+      return {
+        ...state,
+        skinCareToday: action.payload.today,
+        skinCareHistory: action.payload.history,
+      };
+    case 'SET_SKIN_CARE_HISTORY':
+      return { ...state, skinCareHistory: action.payload };
+    case 'SET_RECENTLY_PLAYED':
+      return { ...state, recentlyPlayed: action.payload };
+    case 'SET_MUSIC_RECENT_SEARCHES':
+      return { ...state, musicRecentSearches: action.payload };
     default:
       return state;
   }
@@ -183,6 +257,53 @@ type AppContextValue = AppState & {
   removeVoiceEntry: (id: string) => Promise<void>;
   /** Reload all voice entries from storage. */
   refreshVoiceEntries: () => Promise<void>;
+  /** Seed the default morning + evening ritual. */
+  createSkinCareRoutine: () => Promise<void>;
+  /** Add a custom ritual step. */
+  addSkinCareStep: (data: {
+    period: SkinCarePeriod;
+    name: string;
+    productName?: string | null;
+    notes?: string | null;
+    category: SkinCareCategory;
+  }) => Promise<SkinCareStep | null>;
+  /** Update an existing ritual step. */
+  updateSkinCareStep: (
+    id: string,
+    patch: Partial<{
+      period: SkinCarePeriod;
+      name: string;
+      productName: string | null;
+      notes: string | null;
+      category: SkinCareCategory;
+    }>,
+  ) => Promise<void>;
+  /** Remove a ritual step. */
+  deleteSkinCareStep: (id: string) => Promise<void>;
+  /** Reorder steps within a morning/evening ritual. */
+  reorderSkinCareSteps: (
+    period: SkinCarePeriod,
+    orderedIds: string[],
+  ) => Promise<void>;
+  /** Toggle today's completion for a step. */
+  toggleSkinCareStep: (stepId: string) => Promise<void>;
+  /** Clear today's checkmarks (keeps the ritual). */
+  resetTodaySkinCare: () => Promise<void>;
+  /** Update reminder preferences (local preference layer only). */
+  updateSkinCarePreferences: (reminders: SkinCareReminders) => Promise<void>;
+  /** Ensure today's completion matches the calendar day. */
+  refreshSkinCareDay: () => Promise<void>;
+  /** Record a lightweight recently-played entry (metadata only). */
+  recordRecentlyPlayed: (data: {
+    id: string;
+    title: string;
+    artist: string;
+    albumImage?: string;
+    spotifyUrl?: string;
+    categoryId?: MusicCategoryId | null;
+  }) => Promise<void>;
+  /** Remember a music search query. */
+  rememberMusicSearch: (query: string) => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -207,6 +328,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
               preferences: data.preferences,
               mirrorEntries: data.mirrorEntries,
               voiceEntries: data.voiceEntries,
+              skinCareRoutine: data.skinCareRoutine,
+              skinCareToday: data.skinCareToday,
+              skinCareHistory: data.skinCareHistory,
+              recentlyPlayed: data.recentlyPlayed,
+              musicRecentSearches: data.musicRecentSearches,
               needsOnboarding: data.needsOnboarding,
             },
           });
@@ -224,6 +350,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
               preferences: { ...DEFAULT_PREFERENCES },
               mirrorEntries: [],
               voiceEntries: [],
+              skinCareRoutine: INITIAL_STATE.skinCareRoutine,
+              skinCareToday: INITIAL_STATE.skinCareToday,
+              skinCareHistory: [],
+              recentlyPlayed: [],
+              musicRecentSearches: [],
               needsOnboarding: true,
             },
           });
@@ -298,6 +429,120 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_VOICE_ENTRIES', payload: entries });
   }, []);
 
+  const createSkinCareRoutine = useCallback(async () => {
+    const { routine, today } = await storageCreateSkinCareRoutine();
+    const history = await getSkinCareHistory();
+    dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+    dispatch({
+      type: 'SET_SKIN_CARE_PROGRESS',
+      payload: { today, history },
+    });
+  }, []);
+
+  const addSkinCareStep = useCallback(
+    async (data: {
+      period: SkinCarePeriod;
+      name: string;
+      productName?: string | null;
+      notes?: string | null;
+      category: SkinCareCategory;
+    }) => {
+      const { routine, step } = await storageAddSkinCareStep(data);
+      dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+      return step;
+    },
+    [],
+  );
+
+  const updateSkinCareStep = useCallback(
+    async (
+      id: string,
+      patch: Partial<{
+        period: SkinCarePeriod;
+        name: string;
+        productName: string | null;
+        notes: string | null;
+        category: SkinCareCategory;
+      }>,
+    ) => {
+      const routine = await storageUpdateSkinCareStep(id, patch);
+      dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+    },
+    [],
+  );
+
+  const deleteSkinCareStep = useCallback(async (id: string) => {
+    const { routine, today, history } = await storageDeleteSkinCareStep(id);
+    dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+    dispatch({
+      type: 'SET_SKIN_CARE_PROGRESS',
+      payload: { today, history },
+    });
+  }, []);
+
+  const reorderSkinCareSteps = useCallback(
+    async (period: SkinCarePeriod, orderedIds: string[]) => {
+      const routine = await storageReorderSkinCareSteps(period, orderedIds);
+      dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+    },
+    [],
+  );
+
+  const toggleSkinCareStep = useCallback(async (stepId: string) => {
+    const { today, history } = await storageToggleSkinCareStep(stepId);
+    dispatch({
+      type: 'SET_SKIN_CARE_PROGRESS',
+      payload: { today, history },
+    });
+  }, []);
+
+  const resetTodaySkinCare = useCallback(async () => {
+    const { today, history } = await storageResetTodaySkinCare();
+    dispatch({
+      type: 'SET_SKIN_CARE_PROGRESS',
+      payload: { today, history },
+    });
+  }, []);
+
+  const updateSkinCarePreferences = useCallback(
+    async (reminders: SkinCareReminders) => {
+      const routine = await storageUpdateSkinCareReminders(reminders);
+      dispatch({ type: 'SET_SKIN_CARE_ROUTINE', payload: routine });
+    },
+    [],
+  );
+
+  const refreshSkinCareDay = useCallback(async () => {
+    const [today, history] = await Promise.all([
+      getSkinCareToday(),
+      getSkinCareHistory(),
+    ]);
+    dispatch({
+      type: 'SET_SKIN_CARE_PROGRESS',
+      payload: { today, history },
+    });
+  }, []);
+
+  const recordRecentlyPlayed = useCallback(
+    async (data: {
+      id: string;
+      title: string;
+      artist: string;
+      albumImage?: string;
+      spotifyUrl?: string;
+      categoryId?: MusicCategoryId | null;
+    }) => {
+      const list = await storageAddRecentlyPlayedTrack(data);
+      dispatch({ type: 'SET_RECENTLY_PLAYED', payload: list });
+    },
+    [],
+  );
+
+  const rememberMusicSearch = useCallback(async (query: string) => {
+    const list = await storageAddMusicRecentSearch(query);
+    dispatch({ type: 'SET_MUSIC_RECENT_SEARCHES', payload: list });
+  }, []);
+
   const value = useMemo<AppContextValue>(
     () => ({
       ...state,
@@ -311,6 +556,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addVoiceEntry,
       removeVoiceEntry,
       refreshVoiceEntries,
+      createSkinCareRoutine,
+      addSkinCareStep,
+      updateSkinCareStep,
+      deleteSkinCareStep,
+      reorderSkinCareSteps,
+      toggleSkinCareStep,
+      resetTodaySkinCare,
+      updateSkinCarePreferences,
+      refreshSkinCareDay,
+      recordRecentlyPlayed,
+      rememberMusicSearch,
     }),
     [
       state,
@@ -324,6 +580,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addVoiceEntry,
       removeVoiceEntry,
       refreshVoiceEntries,
+      createSkinCareRoutine,
+      addSkinCareStep,
+      updateSkinCareStep,
+      deleteSkinCareStep,
+      reorderSkinCareSteps,
+      toggleSkinCareStep,
+      resetTodaySkinCare,
+      updateSkinCarePreferences,
+      refreshSkinCareDay,
+      recordRecentlyPlayed,
+      rememberMusicSearch,
     ],
   );
 
