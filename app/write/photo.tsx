@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { Screen } from '@/components/Screen';
+import { WriteCameraModal } from '@/components/WriteCameraModal';
 import { useApp } from '@/lib/AppProvider';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 
@@ -26,31 +27,13 @@ export default function AddJournalPhotoScreen() {
   const { addJournalPhoto, addJournalEntry } = useApp();
 
   const [selectedUri, setSelectedUri] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [caption, setCaption] = useState('');
   const [createAsEntry, setCreateAsEntry] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const handleTakePhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Camera Access Needed',
-          'Please allow camera access to photograph your handwritten notes, poetry, or diary pages.',
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.88,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]?.uri) {
-        setSelectedUri(result.assets[0].uri);
-      }
-    } catch (err) {
-      if (__DEV__) console.warn('[JournalPhoto] Camera failed:', err);
-    }
+  const handleTakePhoto = () => {
+    setCameraOpen(true);
   };
 
   const handlePickPhoto = async () => {
@@ -273,6 +256,17 @@ export default function AddJournalPhotoScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <WriteCameraModal
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(uri) => {
+          setSelectedUri(uri);
+          setCameraOpen(false);
+        }}
+        title="Photograph a Page"
+        subtitle="Hold steady to capture your diary, poetry, or handwritten thought"
+      />
     </Screen>
   );
 }

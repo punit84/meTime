@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
 import { Screen } from '@/components/Screen';
+import { WriteCameraModal } from '@/components/WriteCameraModal';
 import { useApp } from '@/lib/AppProvider';
 import { colors, fonts, radii, shadows, spacing } from '@/lib/theme';
 import type { MoodType } from '@/lib/types';
@@ -60,6 +61,7 @@ export default function JournalEditorScreen() {
   const [content, setContent] = useState(existingEntry?.content || '');
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(existingEntry?.mood || null);
   const [photoUris, setPhotoUris] = useState<string[]>(existingEntry?.photos?.map((p) => p.uri) || []);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(!!existingEntry);
 
@@ -134,27 +136,8 @@ export default function JournalEditorScreen() {
     }
   };
 
-  const handleTakePhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Camera Access Needed',
-          'Please allow camera access to photograph your journal pages or poems.',
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.85,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]?.uri) {
-        setPhotoUris((prev) => [...prev, result.assets[0].uri]);
-      }
-    } catch (err) {
-      if (__DEV__) console.warn('[Journal] Camera take photo failed:', err);
-    }
+  const handleTakePhoto = () => {
+    setCameraOpen(true);
   };
 
   const handleRemovePhoto = (indexToRemove: number) => {
@@ -406,6 +389,17 @@ export default function JournalEditorScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <WriteCameraModal
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(uri) => {
+          setPhotoUris((prev) => [...prev, uri]);
+          setCameraOpen(false);
+        }}
+        title="Photograph Page"
+        subtitle="Capture handwritten pages, shayari, or notes for your journal"
+      />
     </Screen>
   );
 }
