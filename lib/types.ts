@@ -242,13 +242,40 @@ export type GrowthAction = {
   createdAt: string;
 };
 
+// ─── Journal (Write) ─────────────────────────────────────
+
+export type JournalPhoto = {
+  id: string;
+  uri: string;
+  createdAt: string; // ISO 8601
+  caption?: string | null;
+  entryId?: string | null;
+};
+
 export type JournalEntry = {
   id: string;
-  type: 'text' | 'voice';
-  mood?: MoodType;
-  body?: string;
-  uri?: string;
-  createdAt: string;
+  title?: string | null;
+  content: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+  mood?: MoodType | null;
+  photoIds?: string[];
+  photos?: JournalPhoto[];
+};
+
+export type PrivateNote = {
+  id: string;
+  content: string;
+  createdAt: string; // ISO 8601
+  updatedAt: string; // ISO 8601
+};
+
+export type JournalDraft = {
+  title: string;
+  content: string;
+  mood?: MoodType | null;
+  photoUris?: string[];
+  updatedAt: string;
 };
 
 export type FavoriteTrack = {

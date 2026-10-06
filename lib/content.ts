@@ -171,10 +171,10 @@ export const FEATURE_ACTIONS: Record<string, FeatureAction[]> = {
     { id: 'ideas', title: 'Self Care Ideas', subtitle: 'Small rituals to try' },
   ],
   write: [
-    { id: 'new', title: 'New Journal Entry', subtitle: 'Begin a private page' },
-    { id: 'entries', title: 'My Entries', subtitle: 'Everything you’ve written' },
-    { id: 'photo', title: 'Add Photo', subtitle: 'Keep a visual memory' },
-    { id: 'notes', title: 'My Private Notes', subtitle: 'Short thoughts, safely held' },
+    { id: 'new', title: 'New Journal Entry', subtitle: 'Write a private page' },
+    { id: 'entries', title: 'My Entries', subtitle: "Everything you've written" },
+    { id: 'photo', title: 'Add Photo', subtitle: 'Keep a page, poem, or handwritten thought' },
+    { id: 'notes', title: 'Private Notes', subtitle: 'Short thoughts, safely held' },
   ],
   'soft-talk': [
     { id: 'record', title: 'Record a Voice Note', subtitle: 'Speak freely and privately' },

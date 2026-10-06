@@ -77,8 +77,18 @@ export function clearSpotifyMemoryCache(): void {
 // ─── Client ID ───────────────────────────────────────────
 
 export function getSpotifyClientId(): string {
-  const fromEnv = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID;
-  const fromExtra = Constants.expoConfig?.extra?.spotifyClientId;
+  const fromEnv =
+    process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ||
+    process.env.spotify_client_id;
+  const expoConfig = Constants.expoConfig as { extra?: { spotifyClientId?: string } } | undefined | null;
+  const manifest = (Constants as unknown as { manifest?: { extra?: { spotifyClientId?: string } } })?.manifest;
+  const manifest2 = (Constants as unknown as { manifest2?: { extra?: { expoClient?: { extra?: { spotifyClientId?: string } } } } })?.manifest2;
+
+  const fromExtra =
+    expoConfig?.extra?.spotifyClientId ||
+    manifest?.extra?.spotifyClientId ||
+    manifest2?.extra?.expoClient?.extra?.spotifyClientId;
+
   const id =
     (typeof fromEnv === 'string' && fromEnv.trim()) ||
     (typeof fromExtra === 'string' && fromExtra.trim()) ||

@@ -1,12 +1,15 @@
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/components/AppText';
-import { colors, fonts, spacing } from '@/lib/theme';
+import { colors, fonts, radii, spacing } from '@/lib/theme';
 
 type Props = {
   icon?: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle?: string;
+  message?: string;
+  actionLabel?: string;
+  onAction?: () => void;
   style?: ViewStyle;
 };
 
@@ -18,25 +21,43 @@ export function EmptyState({
   icon = 'leaf-outline',
   title,
   subtitle,
+  message,
+  actionLabel,
+  onAction,
   style,
 }: Props) {
+  const displaySubtitle = subtitle || message;
+
   return (
     <View
       style={[styles.container, style]}
       accessibilityRole="text"
-      accessibilityLabel={`${title}${subtitle ? `. ${subtitle}` : ''}`}
+      accessibilityLabel={`${title}${displaySubtitle ? `. ${displaySubtitle}` : ''}`}
     >
       <Ionicons
         name={icon}
-        size={20}
+        size={24}
         color={colors.textMuted}
         style={styles.icon}
       />
       <AppText style={styles.title}>{title}</AppText>
-      {subtitle ? (
+      {displaySubtitle ? (
         <AppText muted style={styles.subtitle}>
-          {subtitle}
+          {displaySubtitle}
         </AppText>
+      ) : null}
+      {actionLabel && onAction ? (
+        <Pressable
+          onPress={onAction}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            pressed && styles.actionBtnPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={actionLabel}
+        >
+          <AppText style={styles.actionBtnText}>{actionLabel}</AppText>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -50,20 +71,37 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginBottom: spacing.sm,
-    opacity: 0.6,
+    opacity: 0.7,
   },
   title: {
     fontFamily: fonts.display,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 17,
+    lineHeight: 24,
     color: colors.textSecondary,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: 'center',
-    marginTop: 4,
-    maxWidth: 220,
+    marginTop: 6,
+    maxWidth: 280,
+  },
+  actionBtn: {
+    marginTop: spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surfaceWarm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionBtnPressed: {
+    opacity: 0.8,
+  },
+  actionBtnText: {
+    fontSize: 13,
+    fontFamily: fonts.bodyMedium,
+    color: colors.textPrimary,
   },
 });

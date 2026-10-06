@@ -31,13 +31,6 @@ function formatDuration(ms: number): string {
 /** Sections that belong to later phases — show empty states. */
 const OTHER_SPACE_SECTIONS = [
   {
-    id: 'journal',
-    title: 'My Journal',
-    icon: 'book-outline' as const,
-    emptyTitle: 'Your pages are waiting.',
-    emptySubtitle: 'My thoughts will have a place here.',
-  },
-  {
     id: 'memories',
     title: 'My Memories',
     icon: 'images-outline' as const,
@@ -55,6 +48,8 @@ export default function MySpaceScreen() {
     skinCareRoutine,
     skinCareToday,
     recentlyPlayed,
+    journalEntries,
+    privateNotes,
   } = useApp();
 
   // Audio preview playback in My Space
@@ -351,7 +346,90 @@ export default function MySpaceScreen() {
         )}
       </View>
 
-      {/* 3. Listen — recently played (lightweight) */}
+      {/* 3. Write / My Journal Section Card */}
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionIconWrap, { backgroundColor: colors.surfaceWarm }]}>
+            <Ionicons name="book-outline" size={16} color={colors.icon} />
+          </View>
+          <View style={styles.sectionTitleWrap}>
+            <AppText style={styles.sectionTitle}>Write</AppText>
+            {(journalEntries.length > 0 || privateNotes.length > 0) && (
+              <AppText muted style={styles.sectionMeta}>
+                {journalEntries.length} {journalEntries.length === 1 ? 'page' : 'pages'}
+                {privateNotes.length > 0
+                  ? ` • ${privateNotes.length} private note${privateNotes.length === 1 ? '' : 's'}`
+                  : ''}
+              </AppText>
+            )}
+          </View>
+          {journalEntries.length > 0 && (
+            <Pressable
+              onPress={() => router.push('/write/entries')}
+              style={({ pressed }) => [styles.viewAllBtn, pressed && styles.pressed]}
+            >
+              <AppText style={styles.viewAllText}>View all</AppText>
+              <Ionicons name="chevron-forward" size={13} color={colors.accentDeep} />
+            </Pressable>
+          )}
+        </View>
+
+        {journalEntries.length === 0 && privateNotes.length === 0 ? (
+          <View style={styles.voiceEmptyWrap}>
+            <EmptyState
+              icon="book-outline"
+              title="Your words, kept close."
+              subtitle="Private pages, poems, and handwritten thoughts."
+            />
+            <Pressable
+              onPress={() => router.push('/write')}
+              style={({ pressed }) => [styles.voiceEmptyBtn, pressed && styles.pressed]}
+            >
+              <Ionicons name="create-outline" size={15} color={colors.textPrimary} />
+              <AppText style={styles.voiceEmptyBtnText}>Open Write</AppText>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.voiceList}>
+            {journalEntries.slice(0, 3).map((entry) => {
+              const dateStr = new Date(entry.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+              });
+
+              return (
+                <Pressable
+                  key={entry.id}
+                  onPress={() => router.push({ pathname: '/write/entry/[id]', params: { id: entry.id } })}
+                  style={({ pressed }) => [styles.voicePreviewRow, pressed && styles.pressed]}
+                >
+                  <View style={styles.writeRowIcon}>
+                    <Ionicons
+                      name={entry.photos && entry.photos.length > 0 ? 'image-outline' : 'document-text-outline'}
+                      size={15}
+                      color={colors.accentDeep}
+                    />
+                  </View>
+                  <View style={styles.voicePreviewInfo}>
+                    <AppText style={styles.voicePreviewDuration} numberOfLines={1}>
+                      {entry.title || entry.content.slice(0, 35) || 'Untitled Page'}
+                    </AppText>
+                    <AppText muted style={styles.voicePreviewDate}>
+                      {dateStr}
+                      {entry.photos && entry.photos.length > 0
+                        ? ` • ${entry.photos.length} photo${entry.photos.length > 1 ? 's' : ''}`
+                        : ''}
+                    </AppText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* 4. Listen — recently played (lightweight) */}
       {recentlyPlayed.length > 0 && (
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
@@ -762,6 +840,17 @@ const styles = StyleSheet.create({
   listenThumbFallback: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  writeRowIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   pressed: {
     opacity: 0.9,

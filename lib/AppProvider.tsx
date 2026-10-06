@@ -23,11 +23,15 @@ import {
 } from 'react';
 import type {
   AppPreferences,
+  JournalDraft,
+  JournalEntry,
+  JournalPhoto,
   MirrorEntry,
   MirrorMediaType,
   MoodEntry,
   MoodType,
   MusicCategoryId,
+  PrivateNote,
   RecentlyPlayedTrack,
   SkinCareCategory,
   SkinCareDayRecord,
@@ -47,23 +51,37 @@ import {
   addMusicRecentSearch as storageAddMusicRecentSearch,
   addRecentlyPlayedTrack as storageAddRecentlyPlayedTrack,
   addSkinCareStep as storageAddSkinCareStep,
+  clearJournalDraft as storageClearJournalDraft,
   completeOnboarding,
   createSkinCareRoutine as storageCreateSkinCareRoutine,
+  deleteJournalEntry as storageDeleteJournalEntry,
+  deleteJournalPhoto as storageDeleteJournalPhoto,
   deleteMirrorEntry,
+  deletePrivateNote as storageDeletePrivateNote,
   deleteSkinCareStep as storageDeleteSkinCareStep,
   deleteVoiceEntry,
+  getJournalDraft as storageGetJournalDraft,
+  getJournalEntries,
+  getJournalPhotos,
   getMirrorEntries,
+  getPrivateNotes,
   getSkinCareHistory,
   getSkinCareToday,
   getVoiceEntries,
   initializeApp,
   reorderSkinCareSteps as storageReorderSkinCareSteps,
   resetTodaySkinCare as storageResetTodaySkinCare,
+  saveJournalDraft as storageSaveJournalDraft,
+  saveJournalEntry,
+  saveJournalPhoto as storageSaveJournalPhoto,
   saveMirrorEntry,
   savePreferences,
+  savePrivateNote as storageSavePrivateNote,
   saveTodayMood,
   saveVoiceEntry,
   toggleSkinCareStep as storageToggleSkinCareStep,
+  updateJournalEntry as storageUpdateJournalEntry,
+  updatePrivateNote as storageUpdatePrivateNote,
   updateProfileName,
   updateSkinCareReminders as storageUpdateSkinCareReminders,
   updateSkinCareStep as storageUpdateSkinCareStep,
@@ -85,6 +103,9 @@ type AppState = {
   skinCareHistory: SkinCareDayRecord[];
   recentlyPlayed: RecentlyPlayedTrack[];
   musicRecentSearches: string[];
+  journalEntries: JournalEntry[];
+  journalPhotos: JournalPhoto[];
+  privateNotes: PrivateNote[];
 };
 
 const INITIAL_STATE: AppState = {
@@ -109,6 +130,9 @@ const INITIAL_STATE: AppState = {
   skinCareHistory: [],
   recentlyPlayed: [],
   musicRecentSearches: [],
+  journalEntries: [],
+  journalPhotos: [],
+  privateNotes: [],
 };
 
 // ─── Actions ─────────────────────────────────────────────
@@ -127,6 +151,9 @@ type Action =
         skinCareHistory: SkinCareDayRecord[];
         recentlyPlayed: RecentlyPlayedTrack[];
         musicRecentSearches: string[];
+        journalEntries: JournalEntry[];
+        journalPhotos: JournalPhoto[];
+        privateNotes: PrivateNote[];
         needsOnboarding: boolean;
       };
     }
@@ -150,7 +177,18 @@ type Action =
     }
   | { type: 'SET_SKIN_CARE_HISTORY'; payload: SkinCareDayRecord[] }
   | { type: 'SET_RECENTLY_PLAYED'; payload: RecentlyPlayedTrack[] }
-  | { type: 'SET_MUSIC_RECENT_SEARCHES'; payload: string[] };
+  | { type: 'SET_MUSIC_RECENT_SEARCHES'; payload: string[] }
+  | { type: 'SET_JOURNAL_ENTRIES'; payload: JournalEntry[] }
+  | { type: 'ADD_JOURNAL_ENTRY'; payload: JournalEntry }
+  | { type: 'UPDATE_JOURNAL_ENTRY'; payload: JournalEntry }
+  | { type: 'REMOVE_JOURNAL_ENTRY'; payload: string }
+  | { type: 'SET_JOURNAL_PHOTOS'; payload: JournalPhoto[] }
+  | { type: 'ADD_JOURNAL_PHOTO'; payload: JournalPhoto }
+  | { type: 'REMOVE_JOURNAL_PHOTO'; payload: string }
+  | { type: 'SET_PRIVATE_NOTES'; payload: PrivateNote[] }
+  | { type: 'ADD_PRIVATE_NOTE'; payload: PrivateNote }
+  | { type: 'UPDATE_PRIVATE_NOTE'; payload: PrivateNote }
+  | { type: 'REMOVE_PRIVATE_NOTE'; payload: string };
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -168,6 +206,9 @@ function reducer(state: AppState, action: Action): AppState {
         skinCareHistory: action.payload.skinCareHistory,
         recentlyPlayed: action.payload.recentlyPlayed,
         musicRecentSearches: action.payload.musicRecentSearches,
+        journalEntries: action.payload.journalEntries,
+        journalPhotos: action.payload.journalPhotos,
+        privateNotes: action.payload.privateNotes,
         needsOnboarding: action.payload.needsOnboarding,
       };
     case 'SET_USER':
@@ -220,6 +261,52 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, recentlyPlayed: action.payload };
     case 'SET_MUSIC_RECENT_SEARCHES':
       return { ...state, musicRecentSearches: action.payload };
+    case 'SET_JOURNAL_ENTRIES':
+      return { ...state, journalEntries: action.payload };
+    case 'ADD_JOURNAL_ENTRY':
+      return {
+        ...state,
+        journalEntries: [action.payload, ...state.journalEntries.filter((e) => e.id !== action.payload.id)],
+      };
+    case 'UPDATE_JOURNAL_ENTRY':
+      return {
+        ...state,
+        journalEntries: state.journalEntries.map((e) => (e.id === action.payload.id ? action.payload : e)),
+      };
+    case 'REMOVE_JOURNAL_ENTRY':
+      return {
+        ...state,
+        journalEntries: state.journalEntries.filter((e) => e.id !== action.payload),
+      };
+    case 'SET_JOURNAL_PHOTOS':
+      return { ...state, journalPhotos: action.payload };
+    case 'ADD_JOURNAL_PHOTO':
+      return {
+        ...state,
+        journalPhotos: [action.payload, ...state.journalPhotos.filter((p) => p.id !== action.payload.id)],
+      };
+    case 'REMOVE_JOURNAL_PHOTO':
+      return {
+        ...state,
+        journalPhotos: state.journalPhotos.filter((p) => p.id !== action.payload),
+      };
+    case 'SET_PRIVATE_NOTES':
+      return { ...state, privateNotes: action.payload };
+    case 'ADD_PRIVATE_NOTE':
+      return {
+        ...state,
+        privateNotes: [action.payload, ...state.privateNotes.filter((n) => n.id !== action.payload.id)],
+      };
+    case 'UPDATE_PRIVATE_NOTE':
+      return {
+        ...state,
+        privateNotes: state.privateNotes.map((n) => (n.id === action.payload.id ? action.payload : n)),
+      };
+    case 'REMOVE_PRIVATE_NOTE':
+      return {
+        ...state,
+        privateNotes: state.privateNotes.filter((n) => n.id !== action.payload),
+      };
     default:
       return state;
   }
@@ -304,6 +391,56 @@ type AppContextValue = AppState & {
   }) => Promise<void>;
   /** Remember a music search query. */
   rememberMusicSearch: (query: string) => Promise<void>;
+  /** Add a journal entry to Write. */
+  addJournalEntry: (data: {
+    title?: string | null;
+    content: string;
+    mood?: MoodType | null;
+    photoIds?: string[];
+  }) => Promise<JournalEntry>;
+  /** Update an existing journal entry. */
+  updateJournalEntry: (
+    id: string,
+    updates: Partial<{
+      title: string | null;
+      content: string;
+      mood: MoodType | null;
+      photoIds: string[];
+    }>,
+  ) => Promise<JournalEntry | null>;
+  /** Delete a journal entry and its attached photos. */
+  deleteJournalEntry: (id: string) => Promise<void>;
+  /** Refresh journal entries list from storage. */
+  refreshJournalEntries: () => Promise<void>;
+  /** Add a standalone journal photo to Write. */
+  addJournalPhoto: (data: {
+    uri: string;
+    caption?: string | null;
+    entryId?: string | null;
+  }) => Promise<JournalPhoto>;
+  /** Delete a journal photo. */
+  deleteJournalPhoto: (id: string) => Promise<void>;
+  /** Refresh journal photos list from storage. */
+  refreshJournalPhotos: () => Promise<void>;
+  /** Add a private note. */
+  addPrivateNote: (content: string) => Promise<PrivateNote>;
+  /** Update a private note. */
+  updatePrivateNote: (id: string, content: string) => Promise<PrivateNote | null>;
+  /** Delete a private note. */
+  deletePrivateNote: (id: string) => Promise<void>;
+  /** Refresh private notes list from storage. */
+  refreshPrivateNotes: () => Promise<void>;
+  /** Save journal editor draft. */
+  saveJournalDraft: (draft: {
+    title: string;
+    content: string;
+    mood?: MoodType | null;
+    photoUris?: string[];
+  }) => Promise<void>;
+  /** Get journal editor draft. */
+  getJournalDraft: () => Promise<JournalDraft | null>;
+  /** Clear journal editor draft. */
+  clearJournalDraft: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -333,6 +470,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               skinCareHistory: data.skinCareHistory,
               recentlyPlayed: data.recentlyPlayed,
               musicRecentSearches: data.musicRecentSearches,
+              journalEntries: data.journalEntries,
+              journalPhotos: data.journalPhotos,
+              privateNotes: data.privateNotes,
               needsOnboarding: data.needsOnboarding,
             },
           });
@@ -355,6 +495,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               skinCareHistory: [],
               recentlyPlayed: [],
               musicRecentSearches: [],
+              journalEntries: [],
+              journalPhotos: [],
+              privateNotes: [],
               needsOnboarding: true,
             },
           });
@@ -543,6 +686,122 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_MUSIC_RECENT_SEARCHES', payload: list });
   }, []);
 
+  // ─── Journal Actions ─────────────────────────────────────
+
+  const addJournalEntry = useCallback(
+    async (data: {
+      title?: string | null;
+      content: string;
+      mood?: MoodType | null;
+      photoIds?: string[];
+    }) => {
+      const entry = await saveJournalEntry(data);
+      dispatch({ type: 'ADD_JOURNAL_ENTRY', payload: entry });
+      // Clear draft on successful save
+      await storageClearJournalDraft();
+      return entry;
+    },
+    [],
+  );
+
+  const updateJournalEntry = useCallback(
+    async (
+      id: string,
+      updates: Partial<{
+        title: string | null;
+        content: string;
+        mood: MoodType | null;
+        photoIds: string[];
+      }>,
+    ) => {
+      const entry = await storageUpdateJournalEntry(id, updates);
+      if (entry) {
+        dispatch({ type: 'UPDATE_JOURNAL_ENTRY', payload: entry });
+        await storageClearJournalDraft();
+      }
+      return entry;
+    },
+    [],
+  );
+
+  const deleteJournalEntry = useCallback(async (id: string) => {
+    await storageDeleteJournalEntry(id);
+    dispatch({ type: 'REMOVE_JOURNAL_ENTRY', payload: id });
+    const photos = await getJournalPhotos();
+    dispatch({ type: 'SET_JOURNAL_PHOTOS', payload: photos });
+  }, []);
+
+  const refreshJournalEntries = useCallback(async () => {
+    const entries = await getJournalEntries();
+    dispatch({ type: 'SET_JOURNAL_ENTRIES', payload: entries });
+  }, []);
+
+  const addJournalPhoto = useCallback(
+    async (data: { uri: string; caption?: string | null; entryId?: string | null }) => {
+      const photo = await storageSaveJournalPhoto(data);
+      dispatch({ type: 'ADD_JOURNAL_PHOTO', payload: photo });
+      return photo;
+    },
+    [],
+  );
+
+  const deleteJournalPhoto = useCallback(async (id: string) => {
+    await storageDeleteJournalPhoto(id);
+    dispatch({ type: 'REMOVE_JOURNAL_PHOTO', payload: id });
+    // Also refresh entries in case this photo was attached to one
+    const entries = await getJournalEntries();
+    dispatch({ type: 'SET_JOURNAL_ENTRIES', payload: entries });
+  }, []);
+
+  const refreshJournalPhotos = useCallback(async () => {
+    const photos = await getJournalPhotos();
+    dispatch({ type: 'SET_JOURNAL_PHOTOS', payload: photos });
+  }, []);
+
+  const addPrivateNote = useCallback(async (content: string) => {
+    const note = await storageSavePrivateNote(content);
+    dispatch({ type: 'ADD_PRIVATE_NOTE', payload: note });
+    return note;
+  }, []);
+
+  const updatePrivateNote = useCallback(async (id: string, content: string) => {
+    const note = await storageUpdatePrivateNote(id, content);
+    if (note) {
+      dispatch({ type: 'UPDATE_PRIVATE_NOTE', payload: note });
+    }
+    return note;
+  }, []);
+
+  const deletePrivateNote = useCallback(async (id: string) => {
+    await storageDeletePrivateNote(id);
+    dispatch({ type: 'REMOVE_PRIVATE_NOTE', payload: id });
+  }, []);
+
+  const refreshPrivateNotes = useCallback(async () => {
+    const notes = await getPrivateNotes();
+    dispatch({ type: 'SET_PRIVATE_NOTES', payload: notes });
+  }, []);
+
+  const saveJournalDraft = useCallback(
+    async (draft: {
+      title: string;
+      content: string;
+      mood?: MoodType | null;
+      photoUris?: string[];
+    }) => {
+      await storageSaveJournalDraft(draft);
+    },
+    [],
+  );
+
+  const getJournalDraft = useCallback(async () => {
+    return storageGetJournalDraft();
+  }, []);
+
+  const clearJournalDraft = useCallback(async () => {
+    await storageClearJournalDraft();
+  }, []);
+
   const value = useMemo<AppContextValue>(
     () => ({
       ...state,
@@ -567,6 +826,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshSkinCareDay,
       recordRecentlyPlayed,
       rememberMusicSearch,
+      addJournalEntry,
+      updateJournalEntry,
+      deleteJournalEntry,
+      refreshJournalEntries,
+      addJournalPhoto,
+      deleteJournalPhoto,
+      refreshJournalPhotos,
+      addPrivateNote,
+      updatePrivateNote,
+      deletePrivateNote,
+      refreshPrivateNotes,
+      saveJournalDraft,
+      getJournalDraft,
+      clearJournalDraft,
     }),
     [
       state,
@@ -591,6 +864,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshSkinCareDay,
       recordRecentlyPlayed,
       rememberMusicSearch,
+      addJournalEntry,
+      updateJournalEntry,
+      deleteJournalEntry,
+      refreshJournalEntries,
+      addJournalPhoto,
+      deleteJournalPhoto,
+      refreshJournalPhotos,
+      addPrivateNote,
+      updatePrivateNote,
+      deletePrivateNote,
+      refreshPrivateNotes,
+      saveJournalDraft,
+      getJournalDraft,
+      clearJournalDraft,
     ],
   );
 

@@ -9,11 +9,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import type {
   AppPreferences,
+  JournalDraft,
+  JournalEntry,
+  JournalPhoto,
   MirrorEntry,
   MirrorMediaType,
   MoodEntry,
   MoodType,
   MusicCategoryId,
+  PrivateNote,
   RecentlyPlayedTrack,
   SkinCareCategory,
   SkinCareDayRecord,
@@ -50,6 +54,10 @@ const KEYS = {
   skinCareHistory: '@metime/skin-care-history',
   musicRecentSearches: '@metime/music-recent-searches',
   musicRecentlyPlayed: '@metime/music-recently-played',
+  journalEntries: '@metime/journal-entries',
+  journalPhotos: '@metime/journal-photos',
+  privateNotes: '@metime/private-notes',
+  journalDraft: '@metime/journal-draft',
   // Legacy keys kept for possible future migration
   strengths: '@metime/strengths',
   growth: '@metime/growth',
@@ -866,6 +874,314 @@ export async function addRecentlyPlayedTrack(data: {
   return updated;
 }
 
+// ─── Journal (Write) ─────────────────────────────────────
+
+function isValidJournalPhoto(item: unknown): item is JournalPhoto {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.uri === 'string' &&
+    typeof obj.createdAt === 'string' &&
+    (obj.caption === undefined || obj.caption === null || typeof obj.caption === 'string') &&
+    (obj.entryId === undefined || obj.entryId === null || typeof obj.entryId === 'string')
+  );
+}
+
+export async function getJournalPhotos(): Promise<JournalPhoto[]> {
+  const raw = await readJson<unknown[]>(KEYS.journalPhotos, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidJournalPhoto);
+}
+
+export async function saveJournalPhoto(data: {
+  uri: string;
+  caption?: string | null;
+  entryId?: string | null;
+}): Promise<JournalPhoto> {
+  const now = new Date().toISOString();
+  const photo: JournalPhoto = {
+    id: `jphoto_${generateId()}`,
+    uri: data.uri,
+    createdAt: now,
+    caption: data.caption?.trim() || null,
+    entryId: data.entryId || null,
+  };
+
+  const existing = await getJournalPhotos();
+  const updated = [photo, ...existing];
+  await writeJson(KEYS.journalPhotos, updated);
+  return photo;
+}
+
+export async function deleteJournalPhoto(id: string): Promise<void> {
+  const existing = await getJournalPhotos();
+  const photoToDelete = existing.find((p) => p.id === id);
+
+  if (photoToDelete) {
+    await safeDeleteFile(photoToDelete.uri);
+  }
+
+  const updated = existing.filter((p) => p.id !== id);
+  await writeJson(KEYS.journalPhotos, updated);
+}
+
+function isValidJournalEntry(item: unknown): item is JournalEntry {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.content === 'string' &&
+    typeof obj.createdAt === 'string' &&
+    typeof obj.updatedAt === 'string' &&
+    (obj.title === undefined || obj.title === null || typeof obj.title === 'string') &&
+    (obj.mood === undefined || obj.mood === null || isValidMood(obj.mood)) &&
+    (obj.photoIds === undefined || (Array.isArray(obj.photoIds) && obj.photoIds.every((id) => typeof id === 'string')))
+  );
+}
+
+export async function getJournalEntries(): Promise<JournalEntry[]> {
+  const [rawEntries, allPhotos] = await Promise.all([
+    readJson<unknown[]>(KEYS.journalEntries, []),
+    getJournalPhotos(),
+  ]);
+
+  if (!Array.isArray(rawEntries)) return [];
+  const entries = rawEntries.filter(isValidJournalEntry);
+
+  const photoMap = new Map(allPhotos.map((p) => [p.id, p]));
+
+  // Attach resolved photos
+  return entries.map((entry) => {
+    const attachedPhotos: JournalPhoto[] = [];
+    if (entry.photoIds && entry.photoIds.length > 0) {
+      entry.photoIds.forEach((pid) => {
+        const photo = photoMap.get(pid);
+        if (photo) attachedPhotos.push(photo);
+      });
+    } else {
+      // Check if any photo references this entry by entryId
+      allPhotos.forEach((p) => {
+        if (p.entryId === entry.id) attachedPhotos.push(p);
+      });
+    }
+
+    return {
+      ...entry,
+      photos: attachedPhotos,
+    };
+  });
+}
+
+export async function getJournalEntry(id: string): Promise<JournalEntry | null> {
+  const entries = await getJournalEntries();
+  return entries.find((e) => e.id === id) ?? null;
+}
+
+export async function saveJournalEntry(data: {
+  title?: string | null;
+  content: string;
+  mood?: MoodType | null;
+  photoIds?: string[];
+}): Promise<JournalEntry> {
+  const now = new Date().toISOString();
+  const entryId = `entry_${generateId()}`;
+
+  const entry: JournalEntry = {
+    id: entryId,
+    title: data.title?.trim() || null,
+    content: data.content.trim(),
+    createdAt: now,
+    updatedAt: now,
+    mood: data.mood || null,
+    photoIds: data.photoIds || [],
+  };
+
+  // If photoIds are provided, link their entryId
+  if (data.photoIds && data.photoIds.length > 0) {
+    const photos = await getJournalPhotos();
+    const updatedPhotos = photos.map((p) => {
+      if (data.photoIds?.includes(p.id)) {
+        return { ...p, entryId };
+      }
+      return p;
+    });
+    await writeJson(KEYS.journalPhotos, updatedPhotos);
+  }
+
+  const existing = await readJson<unknown[]>(KEYS.journalEntries, []);
+  const updated = [entry, ...(Array.isArray(existing) ? existing.filter(isValidJournalEntry) : [])];
+  await writeJson(KEYS.journalEntries, updated);
+
+  const resolved = await getJournalEntry(entryId);
+  return resolved || entry;
+}
+
+export async function updateJournalEntry(
+  id: string,
+  updates: Partial<{
+    title: string | null;
+    content: string;
+    mood: MoodType | null;
+    photoIds: string[];
+  }>,
+): Promise<JournalEntry | null> {
+  const rawEntries = await readJson<unknown[]>(KEYS.journalEntries, []);
+  if (!Array.isArray(rawEntries)) return null;
+
+  const validEntries = rawEntries.filter(isValidJournalEntry);
+  const target = validEntries.find((e) => e.id === id);
+  if (!target) return null;
+
+  const now = new Date().toISOString();
+  const updatedEntry: JournalEntry = {
+    ...target,
+    title: updates.title !== undefined ? updates.title?.trim() || null : target.title,
+    content: updates.content !== undefined ? updates.content.trim() : target.content,
+    mood: updates.mood !== undefined ? updates.mood : target.mood,
+    photoIds: updates.photoIds !== undefined ? updates.photoIds : target.photoIds,
+    updatedAt: now,
+  };
+
+  // If photoIds were updated, update photo links
+  if (updates.photoIds !== undefined) {
+    const photos = await getJournalPhotos();
+    const updatedPhotos = photos.map((p) => {
+      if (updates.photoIds?.includes(p.id)) {
+        return { ...p, entryId: id };
+      }
+      if (p.entryId === id && !updates.photoIds?.includes(p.id)) {
+        return { ...p, entryId: null };
+      }
+      return p;
+    });
+    await writeJson(KEYS.journalPhotos, updatedPhotos);
+  }
+
+  const updatedList = validEntries.map((e) => (e.id === id ? updatedEntry : e));
+  await writeJson(KEYS.journalEntries, updatedList);
+
+  return getJournalEntry(id);
+}
+
+export async function deleteJournalEntry(id: string): Promise<boolean> {
+  const rawEntries = await readJson<unknown[]>(KEYS.journalEntries, []);
+  if (!Array.isArray(rawEntries)) return false;
+
+  const validEntries = rawEntries.filter(isValidJournalEntry);
+  const entryToDelete = validEntries.find((e) => e.id === id);
+  if (!entryToDelete) return false;
+
+  // Clean up attached photos
+  const photos = await getJournalPhotos();
+  const attachedPhotos = photos.filter(
+    (p) => (entryToDelete.photoIds && entryToDelete.photoIds.includes(p.id)) || p.entryId === id,
+  );
+
+  // Safely delete photo files from disk
+  await Promise.all(attachedPhotos.map((p) => safeDeleteFile(p.uri)));
+
+  // Remove photo records
+  const remainingPhotos = photos.filter(
+    (p) => !(entryToDelete.photoIds && entryToDelete.photoIds.includes(p.id)) && p.entryId !== id,
+  );
+  await writeJson(KEYS.journalPhotos, remainingPhotos);
+
+  // Remove entry
+  const remainingEntries = validEntries.filter((e) => e.id !== id);
+  await writeJson(KEYS.journalEntries, remainingEntries);
+
+  return true;
+}
+
+// ─── Private Notes ───────────────────────────────────────
+
+function isValidPrivateNote(item: unknown): item is PrivateNote {
+  if (!item || typeof item !== 'object') return false;
+  const obj = item as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.content === 'string' &&
+    typeof obj.createdAt === 'string' &&
+    typeof obj.updatedAt === 'string'
+  );
+}
+
+export async function getPrivateNotes(): Promise<PrivateNote[]> {
+  const raw = await readJson<unknown[]>(KEYS.privateNotes, []);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isValidPrivateNote);
+}
+
+export async function savePrivateNote(content: string): Promise<PrivateNote> {
+  const now = new Date().toISOString();
+  const note: PrivateNote = {
+    id: `note_${generateId()}`,
+    content: content.trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const existing = await getPrivateNotes();
+  const updated = [note, ...existing];
+  await writeJson(KEYS.privateNotes, updated);
+  return note;
+}
+
+export async function updatePrivateNote(
+  id: string,
+  content: string,
+): Promise<PrivateNote | null> {
+  const existing = await getPrivateNotes();
+  const target = existing.find((n) => n.id === id);
+  if (!target) return null;
+
+  const updatedNote: PrivateNote = {
+    ...target,
+    content: content.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updatedList = existing.map((n) => (n.id === id ? updatedNote : n));
+  await writeJson(KEYS.privateNotes, updatedList);
+  return updatedNote;
+}
+
+export async function deletePrivateNote(id: string): Promise<boolean> {
+  const existing = await getPrivateNotes();
+  const updatedList = existing.filter((n) => n.id !== id);
+  await writeJson(KEYS.privateNotes, updatedList);
+  return true;
+}
+
+// ─── Journal Draft ───────────────────────────────────────
+
+export async function saveJournalDraft(draft: {
+  title: string;
+  content: string;
+  mood?: MoodType | null;
+  photoUris?: string[];
+}): Promise<void> {
+  const data: JournalDraft = {
+    title: draft.title,
+    content: draft.content,
+    mood: draft.mood || null,
+    photoUris: draft.photoUris || [],
+    updatedAt: new Date().toISOString(),
+  };
+  await writeJson(KEYS.journalDraft, data);
+}
+
+export async function getJournalDraft(): Promise<JournalDraft | null> {
+  const raw = await readJson<JournalDraft | null>(KEYS.journalDraft, null);
+  if (!raw || typeof raw !== 'object') return null;
+  return raw;
+}
+
+export async function clearJournalDraft(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.journalDraft);
+}
+
 // ─── Initialize ──────────────────────────────────────────
 
 export type AppInitData = {
@@ -879,6 +1195,9 @@ export type AppInitData = {
   skinCareHistory: SkinCareDayRecord[];
   recentlyPlayed: RecentlyPlayedTrack[];
   musicRecentSearches: string[];
+  journalEntries: JournalEntry[];
+  journalPhotos: JournalPhoto[];
+  privateNotes: PrivateNote[];
   needsOnboarding: boolean;
 };
 
@@ -900,6 +1219,9 @@ export async function initializeApp(): Promise<AppInitData> {
     skinCareHistory,
     recentlyPlayed,
     musicRecentSearches,
+    journalEntries,
+    journalPhotos,
+    privateNotes,
   ] = await Promise.all([
     getProfile(),
     getTodayMood(),
@@ -911,6 +1233,9 @@ export async function initializeApp(): Promise<AppInitData> {
     getSkinCareHistory(),
     getRecentlyPlayedTracks(),
     getMusicRecentSearches(),
+    getJournalEntries(),
+    getJournalPhotos(),
+    getPrivateNotes(),
   ]);
 
   return {
@@ -924,6 +1249,9 @@ export async function initializeApp(): Promise<AppInitData> {
     skinCareHistory,
     recentlyPlayed,
     musicRecentSearches,
+    journalEntries,
+    journalPhotos,
+    privateNotes,
     needsOnboarding: !profile.onboardingComplete,
   };
 }
@@ -935,13 +1263,15 @@ export async function clearAllData(): Promise<void> {
   if (!__DEV__) return;
   // Clean up media files before wiping keys
   try {
-    const [mirror, voice] = await Promise.all([
+    const [mirror, voice, journalPhotos] = await Promise.all([
       getMirrorEntries(),
       getVoiceEntries(),
+      getJournalPhotos(),
     ]);
     await Promise.all([
       ...mirror.map((e) => safeDeleteFile(e.uri)),
       ...voice.map((e) => safeDeleteFile(e.uri)),
+      ...journalPhotos.map((p) => safeDeleteFile(p.uri)),
     ]);
   } catch {
     // Ignore cleanup error in dev

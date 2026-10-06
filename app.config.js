@@ -16,8 +16,17 @@ function loadEnvFile() {
       const eq = trimmed.indexOf('=');
       if (eq <= 0) continue;
       const key = trimmed.slice(0, eq).trim();
-      const value = trimmed.slice(eq + 1).trim();
-      if (!process.env[key]) process.env[key] = value;
+      let value = trimmed.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1).trim();
+      }
+      process.env[key] = value;
+    }
+    if (process.env.spotify_client_id && !process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID) {
+      process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID = process.env.spotify_client_id;
+    }
+    if (process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID && !process.env.spotify_client_id) {
+      process.env.spotify_client_id = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID;
     }
   } catch {
     // ignore missing/unreadable .env
