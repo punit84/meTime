@@ -38,7 +38,7 @@ export function useSpotifyGate(): SpotifyGateState {
       if (!ok) {
         setNeedsConnect(true);
         setError(
-          `Connection paused. In Spotify Dashboard → Redirect URIs, add:\n${redirectUri}`,
+          `Spotify rejected the login (often a Redirect URI mismatch).\n\nIn Spotify Developer Dashboard → your app → Settings → Redirect URIs, add exactly:\n${redirectUri}\n\nAlso add http://127.0.0.1:8081/spotify-callback and metime://spotify-callback (Spotify rejects “localhost”), then Save.\n\nDevelopment Mode also needs Spotify Premium on the app owner account.`,
         );
         return false;
       }
@@ -47,7 +47,7 @@ export function useSpotifyGate(): SpotifyGateState {
     } catch (err) {
       setNeedsConnect(true);
       setError(
-        `${friendlySpotifyError(err)}\n\nRedirect URI to register:\n${redirectUri}`,
+        `${friendlySpotifyError(err)}\n\nAdd this exact Redirect URI in Spotify Dashboard → Settings, then Save:\n${redirectUri}\n\nIf Web API stays blocked, the Spotify app owner needs Premium.`,
       );
       return false;
     } finally {

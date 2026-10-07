@@ -225,7 +225,7 @@ export default function MusicCategoryScreen() {
             <AppText style={styles.connectError}>{gateError || error}</AppText>
           )}
           <AppText muted style={styles.redirectHint}>
-            If login fails, add this Redirect URI in Spotify Dashboard:{'\n'}
+            If login fails, add this Redirect URI in Spotify Dashboard (use 127.0.0.1, not localhost):{'\n'}
             {redirectUri}
           </AppText>
           <Pressable

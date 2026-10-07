@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
   StyleSheet,
   Switch,
+  TextInput,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -12,6 +14,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { Screen } from '@/components/Screen';
 import { SettingsRow } from '@/components/SettingsRow';
 import { useApp } from '@/lib/AppProvider';
+import {
+  getGeminiApiKey,
+  setGeminiApiKey,
+} from '@/lib/geminiLive';
 import {
   REMINDER_TIME_OPTIONS,
   formatReminderTime,
@@ -30,6 +36,20 @@ export default function SettingsScreen() {
   } = useApp();
 
   const reminders = skinCareRoutine.reminders;
+  const [geminiKey, setGeminiKey] = useState('');
+  const [geminiSaved, setGeminiSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getGeminiApiKey()
+      .then((key) => {
+        if (!cancelled) setGeminiKey(key);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleNotificationsToggle = async (val: boolean) => {
     await updatePreferences({
@@ -218,6 +238,38 @@ export default function SettingsScreen() {
         onPress={() => cycleReminderTime('evening')}
       />
 
+      <AppText muted style={styles.sectionHeader}>SOFT TALK COMPANION</AppText>
+      <AppText muted style={styles.reminderHint}>
+        Gemini Live powers Talk with Me (browser). The key stays on this device, or use EXPO_PUBLIC_GEMINI_API_KEY in .env for local dev.
+      </AppText>
+      <View style={styles.geminiCard}>
+        <TextInput
+          value={geminiKey}
+          onChangeText={(text) => {
+            setGeminiKey(text);
+            setGeminiSaved(false);
+          }}
+          placeholder="Paste Gemini API key"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry
+          style={styles.geminiInput}
+          accessibilityLabel="Gemini API key"
+        />
+        <Pressable
+          onPress={async () => {
+            await setGeminiApiKey(geminiKey);
+            setGeminiSaved(true);
+          }}
+          style={({ pressed }) => [styles.geminiSave, pressed && styles.pressed]}
+        >
+          <AppText style={styles.geminiSaveText}>
+            {geminiSaved ? 'Saved' : 'Save key'}
+          </AppText>
+        </Pressable>
+      </View>
+
       <AppText muted style={styles.sectionHeader}>PRIVACY & CARE</AppText>
 
       {/* App Lock Row */}
@@ -335,6 +387,38 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginLeft: 2,
     maxWidth: 340,
+  },
+  geminiCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  geminiInput: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    color: colors.textPrimary,
+    backgroundColor: colors.surfaceWarm,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+  },
+  geminiSave: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.selected,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+  },
+  geminiSaveText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.white,
   },
   switchRow: {
     flexDirection: 'row',
