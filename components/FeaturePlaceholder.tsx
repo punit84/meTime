@@ -28,6 +28,8 @@ export type DetailScreenProps = {
   moodWash?: string;
   actionIcon?: keyof typeof Ionicons.glyphMap;
   onActionPress?: (action: FeatureAction) => void;
+  /** Soft colourful border + corner flowers (Write hub). */
+  floralFrame?: boolean;
 };
 
 export function FeaturePlaceholder({
@@ -40,6 +42,7 @@ export function FeaturePlaceholder({
   moodWash = colors.surfaceWarm,
   actionIcon = 'sparkles-outline',
   onActionPress,
+  floralFrame = false,
 }: DetailScreenProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -99,6 +102,90 @@ export function FeaturePlaceholder({
       </View>
 
       {/* 2. CONTINUOUS CREAM CONTENT SHEET (NO STACKED CARDS, NO DUPLICATE IMAGE) */}
+      {floralFrame ? (
+        <LinearGradient
+          colors={['#E8B4A0', '#D4A5C9', '#A8C5A0', '#F0C9B0']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.floralShell}
+        >
+          <View style={[styles.sheet, styles.sheetFloral]}>
+            <View style={[styles.sheetFlower, styles.sheetFlowerTL]} pointerEvents="none">
+              <Ionicons name="flower" size={20} color="#C08B7A" />
+            </View>
+            <View style={[styles.sheetFlower, styles.sheetFlowerTR]} pointerEvents="none">
+              <Ionicons name="rose" size={18} color="#B07A86" />
+            </View>
+            <View style={styles.handle} />
+            <View style={styles.actionsContainer}>
+              {actions.map((action, index) => {
+                const isLast = index === actions.length - 1;
+                return (
+                  <Pressable
+                    key={action.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${action.title}. ${action.subtitle}`}
+                    onPress={() => {
+                      if (onActionPress) {
+                        onActionPress(action);
+                      } else {
+                        Alert.alert(action.title, 'Coming in a later phase.');
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionRow,
+                      !isLast && styles.actionDivider,
+                      pressed && styles.actionPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.actionIconPill,
+                        { backgroundColor: moodWash },
+                      ]}
+                    >
+                      <Ionicons name={actionIcon} size={15} color={colors.icon} />
+                    </View>
+                    <View style={styles.actionCopy}>
+                      <AppText style={styles.actionTitle}>{action.title}</AppText>
+                      <AppText muted style={styles.actionSub}>
+                        {action.subtitle}
+                      </AppText>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View
+              style={[styles.reflectionCard, { backgroundColor: moodWash }]}
+              accessibilityRole="text"
+            >
+              <Ionicons
+                name="flower-outline"
+                size={18}
+                color={colors.accentDeep}
+                style={styles.reflectionIcon}
+              />
+              <AppText style={styles.reflectionQuote}>
+                “{reflection.quote}”
+              </AppText>
+              {reflection.sub ? (
+                <AppText muted style={styles.reflectionSub}>
+                  {reflection.sub}
+                </AppText>
+              ) : null}
+            </View>
+            <View style={[styles.sheetFlower, styles.sheetFlowerBR]} pointerEvents="none">
+              <Ionicons name="leaf" size={16} color="#8F9E7A" />
+            </View>
+          </View>
+        </LinearGradient>
+      ) : (
       <View style={styles.sheet}>
         {/* Soft Handle */}
         <View style={styles.handle} />
@@ -176,6 +263,7 @@ export function FeaturePlaceholder({
           ) : null}
         </View>
       </View>
+      )}
     </Screen>
   );
 }
@@ -260,6 +348,28 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.xl,
   },
+  floralShell: {
+    marginTop: -28,
+    marginHorizontal: spacing.sm,
+    borderRadius: radii.xl + 2,
+    padding: 3,
+    marginBottom: spacing.sm,
+  },
+  sheetFloral: {
+    marginTop: 0,
+    borderRadius: radii.xl,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  sheetFlower: {
+    position: 'absolute',
+    zIndex: 3,
+    opacity: 0.9,
+  },
+  sheetFlowerTL: { top: 14, left: 14 },
+  sheetFlowerTR: { top: 14, right: 14 },
+  sheetFlowerBR: { bottom: 16, right: 16 },
   handle: {
     width: 36,
     height: 4,

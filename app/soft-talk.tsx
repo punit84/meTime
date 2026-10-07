@@ -585,7 +585,26 @@ export default function SoftTalkScreen() {
             <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
           </Pressable>
 
-          {/* Action 2: My Voice */}
+          {/* Action 2: Talk with Me (Gemini Live) */}
+          <Pressable
+            onPress={() => router.push('/soft-talk/live')}
+            style={({ pressed }) => [styles.actionRow, styles.actionDivider, pressed && styles.actionPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Talk with Me. A gentle voice conversation with Gemini."
+          >
+            <View style={[styles.actionIconPill, { backgroundColor: '#EDE6DF' }]}>
+              <Ionicons name="chatbubbles-outline" size={17} color={colors.icon} />
+            </View>
+            <View style={styles.actionCopy}>
+              <AppText style={styles.actionTitle}>Talk with Me</AppText>
+              <AppText muted style={styles.actionSub}>
+                Gentle voice-to-voice with Gemini
+              </AppText>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+          </Pressable>
+
+          {/* Action 3: My Voice */}
           <Pressable
             onPress={() => router.push('/soft-talk/voice')}
             style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}

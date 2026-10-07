@@ -35,6 +35,10 @@ function InnerLayout() {
     if (!isReady) return;
 
     const inOnboarding = segments[0] === 'onboarding';
+    const inSpotifyCallback = segments[0] === 'spotify-callback';
+
+    // Never interrupt the OAuth redirect landing page.
+    if (inSpotifyCallback) return;
 
     if (needsOnboarding && !inOnboarding) {
       router.replace('/onboarding');
@@ -84,11 +88,17 @@ function InnerLayout() {
       <Stack.Screen name="skin-care/edit" />
       <Stack.Screen name="skin-care/history" />
       <Stack.Screen name="write" />
+      <Stack.Screen name="write/new" options={{ animation: 'fade' }} />
+      <Stack.Screen name="write/entries" />
+      <Stack.Screen name="write/entry" />
+      <Stack.Screen name="write/notes" />
       <Stack.Screen name="soft-talk" />
       <Stack.Screen name="soft-talk/voice" />
+      <Stack.Screen name="soft-talk/live" options={{ animation: 'fade' }} />
       <Stack.Screen name="music/category" />
       <Stack.Screen name="music/search" />
       <Stack.Screen name="music/player" />
+      <Stack.Screen name="spotify-callback" options={{ animation: 'none' }} />
       <Stack.Screen name="games" />
       <Stack.Screen name="games/puzzle" />
       <Stack.Screen name="games/memory" />

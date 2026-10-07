@@ -62,6 +62,7 @@ const KEYS = {
   strengths: '@metime/strengths',
   growth: '@metime/growth',
   journal: '@metime/journal',
+  privateNotes: '@metime/private-notes',
   tracks: '@metime/tracks',
   selfies: '@metime/selfies',
 } as const;

@@ -40,6 +40,8 @@ module.exports = ({ config }) => {
     process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ||
     process.env.spotify_client_id ||
     '';
+  // Dev convenience only — prefer Settings storage or ephemeral tokens in production.
+  const geminiApiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
 
   return {
     ...config,
@@ -47,6 +49,7 @@ module.exports = ({ config }) => {
     extra: {
       ...(config.extra || {}),
       spotifyClientId,
+      geminiApiKey,
     },
   };
 };

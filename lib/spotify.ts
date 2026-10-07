@@ -107,9 +107,24 @@ function requireClientId(): string {
 }
 
 function makeRedirectUri(): string {
+  // Spotify forbids "localhost" — loopback must be an explicit IP (127.0.0.1 / ::1).
+  // https://developer.spotify.com/documentation/web-api/concepts/redirect_uri
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    const port = window.location.port;
+    const isLoopback =
+      host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1';
+    if (isLoopback) {
+      const portPart = port ? `:${port}` : '';
+      return `http://127.0.0.1${portPart}/spotify-callback`;
+    }
+  }
+
   return AuthSession.makeRedirectUri({
     scheme: 'metime',
     path: 'spotify-callback',
+    // Prefer 127.0.0.1 over "localhost" when Expo resolves a loopback URI.
+    preferLocalhost: false,
   });
 }
 
@@ -324,6 +339,13 @@ async function spotifyFetch<T>(
 
   if (response.status === 429) {
     throw new SpotifyApiError('Music is resting for a moment. Try again shortly.', 429);
+  }
+
+  if (response.status === 403) {
+    throw new SpotifyApiError(
+      'Spotify blocked this app’s Web API access. The Spotify Developer account that owns Me Time needs an active Premium subscription (Development Mode rule).',
+      403,
+    );
   }
 
   if (!response.ok) {
