@@ -61,7 +61,7 @@ function groupEntriesByDate(entries: JournalEntry[]): { title: string; items: Jo
 export default function MyEntriesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { journalEntries } = useApp();
+  const { journalEntries, journalPhotos } = useApp();
 
   const groupedSections = useMemo(() => {
     return groupEntriesByDate(journalEntries);
@@ -128,7 +128,12 @@ export default function MyEntriesScreen() {
                 </AppText>
 
                 {section.items.map((entry) => {
-                  const hasPhotos = entry.photos && entry.photos.length > 0;
+                  const entryPhotos = (entry.photos && entry.photos.length > 0)
+                    ? entry.photos
+                    : journalPhotos.filter(
+                        (p) => (entry.photoIds && entry.photoIds.includes(p.id)) || p.entryId === entry.id,
+                      );
+                  const hasPhotos = entryPhotos.length > 0;
                   const moodMeta = entry.mood ? MOOD_META[entry.mood] : null;
 
                   return (
@@ -150,7 +155,7 @@ export default function MyEntriesScreen() {
                       </View>
 
                       <AppText muted style={styles.entrySnippet} numberOfLines={2}>
-                        {entry.content || (hasPhotos ? 'Keepsake photo attached' : '')}
+                        {entry.content || (hasPhotos ? 'Photo attached' : '')}
                       </AppText>
 
                       {/* Badges Row: Mood & Photo counter */}
@@ -165,7 +170,7 @@ export default function MyEntriesScreen() {
                           <View style={styles.photoBadge}>
                             <Ionicons name="image-outline" size={13} color={colors.accentDeep} />
                             <AppText style={styles.photoBadgeText}>
-                              {entry.photos?.length} {entry.photos?.length === 1 ? 'photo' : 'photos'}
+                              {entryPhotos.length} {entryPhotos.length === 1 ? 'photo' : 'photos'}
                             </AppText>
                           </View>
                         )}

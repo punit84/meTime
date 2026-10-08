@@ -50,7 +50,8 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Web recording refs
+  // Web camera & recording refs
+  const webVideoRef = useRef<HTMLVideoElement | null>(null);
   const webMediaRecorderRef = useRef<unknown>(null);
   const webVideoChunksRef = useRef<Blob[]>([]);
   const webStreamRef = useRef<MediaStream | null>(null);
@@ -98,14 +99,55 @@ export default function CameraScreen() {
     };
   }, [isRecording]);
 
-  // Clean up web stream on unmount
+  // Start live web camera feed on web
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    let active = true;
+
+    async function initWebCamera() {
+      try {
+        if (webStreamRef.current) {
+          webStreamRef.current.getTracks().forEach((track) => track.stop());
+          webStreamRef.current = null;
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: facing === 'front' ? 'user' : 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+            audio: true,
+          });
+
+          if (!active) {
+            stream.getTracks().forEach((t) => t.stop());
+            return;
+          }
+
+          webStreamRef.current = stream;
+          if (webVideoRef.current) {
+            webVideoRef.current.srcObject = stream;
+            webVideoRef.current.play().catch(() => {});
+          }
+        }
+      } catch (err) {
+        if (__DEV__) console.warn('[Mirror Camera] Web camera start failed:', err);
+      }
+    }
+
+    initWebCamera();
+
     return () => {
+      active = false;
       if (webStreamRef.current) {
         webStreamRef.current.getTracks().forEach((t) => t.stop());
+        webStreamRef.current = null;
       }
     };
-  }, []);
+  }, [facing]);
 
   const toggleFacing = () => {
     setFacing((prev) => (prev === 'front' ? 'back' : 'front'));
@@ -113,6 +155,26 @@ export default function CameraScreen() {
 
   const handleCapturePhoto = async () => {
     if (Platform.OS === 'web') {
+      if (webVideoRef.current && webVideoRef.current.videoWidth > 0) {
+        const video = webVideoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          if (facing === 'front') {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          setCaptured({
+            type: 'photo',
+            uri: dataUrl,
+          });
+          return;
+        }
+      }
       setCaptured({
         type: 'photo',
         uri: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=800&q=80',
@@ -406,12 +468,29 @@ export default function CameraScreen() {
       <StatusBar style="light" />
 
       {/* Full screen Camera */}
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing={facing}
-        mode={mode === 'video' ? 'video' : 'picture'}
-      />
+      {Platform.OS === 'web' ? (
+        <View style={styles.webCameraWrap}>
+          <video
+            ref={webVideoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: facing === 'front' ? 'scaleX(-1)' : 'none',
+            }}
+          />
+        </View>
+      ) : (
+        <CameraView
+          ref={cameraRef}
+          style={StyleSheet.absoluteFill}
+          facing={facing}
+          mode={mode === 'video' ? 'video' : 'picture'}
+        />
+      )}
 
       {/* Top Controls Overlay */}
       <View style={[styles.topBar, { paddingTop: Math.max(insets.top, 20) + 8 }]}>
@@ -517,6 +596,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#161311',
+  },
+  webCameraWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#161311',
+    overflow: 'hidden',
   },
   topBar: {
     position: 'absolute',

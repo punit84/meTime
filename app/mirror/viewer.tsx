@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -57,27 +58,37 @@ export default function MirrorViewerScreen() {
   });
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete this memory?',
-      'This can’t be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await removeMirrorEntry(entry.id);
-              router.back();
-            } catch (error) {
-              if (__DEV__) console.warn('[Mirror Viewer] Delete failed:', error);
-              setDeleting(false);
-            }
+    const performDelete = async () => {
+      setDeleting(true);
+      try {
+        await removeMirrorEntry(entry.id);
+        router.back();
+      } catch (error) {
+        if (__DEV__) console.warn('[Mirror Viewer] Delete failed:', error);
+        setDeleting(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Delete this memory? This cannot be undone.')) {
+        performDelete().catch(() => {});
+      }
+    } else {
+      Alert.alert(
+        'Delete this memory?',
+        'This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              performDelete().catch(() => {});
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    }
   };
 
   return (

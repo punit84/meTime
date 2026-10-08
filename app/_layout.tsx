@@ -90,6 +90,12 @@ function InnerLayout() {
       <Stack.Screen name="music/search" />
       <Stack.Screen name="music/player" />
       <Stack.Screen name="games" />
+      <Stack.Screen name="games/puzzle" />
+      <Stack.Screen name="games/memory" />
+      <Stack.Screen name="games/mood-match" />
+      <Stack.Screen name="games/bubble-pop" />
+      <Stack.Screen name="games/zen-breathing" />
+      <Stack.Screen name="games/number-flow" />
       <Stack.Screen name="+not-found" />
     </Stack>
   );

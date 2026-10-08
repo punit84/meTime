@@ -116,7 +116,7 @@ export function FeaturePlaceholder({
                   if (onActionPress) {
                     onActionPress(action);
                   } else {
-                    Alert.alert(action.title, 'Coming in a later phase.');
+                    Alert.alert(action.title, 'Coming soon for a quiet pause.');
                   }
                 }}
                 style={({ pressed }) => [
@@ -131,7 +131,11 @@ export function FeaturePlaceholder({
                     { backgroundColor: moodWash },
                   ]}
                 >
-                  <Ionicons name={actionIcon} size={15} color={colors.icon} />
+                  <Ionicons
+                    name={action.icon || actionIcon}
+                    size={16}
+                    color={colors.icon}
+                  />
                 </View>
 
                 <View style={styles.actionCopy}>

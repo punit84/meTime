@@ -66,16 +66,17 @@ export default function AddJournalPhotoScreen() {
 
     try {
       if (createAsEntry) {
-        // Save as a journal entry with attached photo
-        const entry = await addJournalEntry({
-          title: caption.trim() || 'Keepsake Photo',
-          content: caption.trim() ? caption.trim() : 'Preserved page from my journal.',
-        });
-
-        await addJournalPhoto({
+        // Save photo record first
+        const savedPhoto = await addJournalPhoto({
           uri: selectedUri,
           caption: caption.trim() || null,
-          entryId: entry.id,
+        });
+
+        // Create journal entry with linked photo
+        await addJournalEntry({
+          title: caption.trim() || 'Journal Photo',
+          content: caption.trim() ? caption.trim() : 'Photo page from my journal.',
+          photoIds: [savedPhoto.id],
         });
       } else {
         // Save as standalone journal photo
@@ -112,7 +113,7 @@ export default function AddJournalPhotoScreen() {
           </Pressable>
 
           <View style={styles.tagBadge}>
-            <AppText style={styles.tagText}>JOURNAL KEEPSAKE</AppText>
+            <AppText style={styles.tagText}>JOURNAL PHOTO</AppText>
           </View>
 
           {selectedUri ? (
@@ -148,9 +149,9 @@ export default function AddJournalPhotoScreen() {
         >
           {/* Header Title */}
           <View style={styles.titleSection}>
-            <AppText style={styles.title}>Preserve a Page</AppText>
+            <AppText style={styles.title}>Add Photo to Journal</AppText>
             <AppText muted style={styles.subtitle}>
-              Keep handwritten shayari, poetry, a meaningful letter, a sketch, or an affirmation safely in your journal.
+              Keep handwritten shayari, poetry, a diary page, a sketch, or a note safely in your journal.
             </AppText>
           </View>
 

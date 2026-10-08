@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Alert,
   Image,
@@ -43,9 +44,17 @@ export default function JournalEntryDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { journalEntries, deleteJournalEntry } = useApp();
+  const { journalEntries, journalPhotos, deleteJournalEntry } = useApp();
 
   const entry = journalEntries.find((e) => e.id === id);
+
+  const attachedPhotos = useMemo(() => {
+    if (entry?.photos && entry.photos.length > 0) return entry.photos;
+    if (!entry) return [];
+    return journalPhotos.filter(
+      (p) => (entry.photoIds && entry.photoIds.includes(p.id)) || p.entryId === entry.id,
+    );
+  }, [entry, journalPhotos]);
 
   const handleDelete = () => {
     const performDelete = async () => {
@@ -91,7 +100,7 @@ export default function JournalEntryDetailScreen() {
   }
 
   const moodMeta = entry.mood ? MOOD_META[entry.mood] : null;
-  const hasPhotos = entry.photos && entry.photos.length > 0;
+  const hasPhotos = attachedPhotos.length > 0;
 
   return (
     <Screen padded={false} edges={['left', 'right']}>
@@ -164,11 +173,11 @@ export default function JournalEntryDetailScreen() {
             <View style={styles.photosHeader}>
               <Ionicons name="image-outline" size={16} color={colors.accentDeep} />
               <AppText style={styles.photosHeading}>
-                Keepsake Photos & Pages ({entry.photos?.length})
+                Photos ({attachedPhotos.length})
               </AppText>
             </View>
 
-            {entry.photos?.map((photo, index) => (
+            {attachedPhotos.map((photo, index) => (
               <View key={photo.id || `${photo.uri}-${index}`} style={styles.photoCard}>
                 <Image source={{ uri: photo.uri }} style={styles.photoImage} />
                 {photo.caption ? (

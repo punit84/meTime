@@ -740,6 +740,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (data: { uri: string; caption?: string | null; entryId?: string | null }) => {
       const photo = await storageSaveJournalPhoto(data);
       dispatch({ type: 'ADD_JOURNAL_PHOTO', payload: photo });
+      const entries = await getJournalEntries();
+      dispatch({ type: 'SET_JOURNAL_ENTRIES', payload: entries });
       return photo;
     },
     [],

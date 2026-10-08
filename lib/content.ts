@@ -1,4 +1,5 @@
 import { ImageSourcePropType } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { images } from '@/lib/images';
 import { colors } from '@/lib/theme';
 
@@ -43,6 +44,7 @@ export type FeatureAction = {
   id: string;
   title: string;
   subtitle: string;
+  icon?: keyof typeof Ionicons.glyphMap;
 };
 
 export const SPACE_ITEMS: SpaceItem[] = [
@@ -182,9 +184,47 @@ export const FEATURE_ACTIONS: Record<string, FeatureAction[]> = {
     { id: 'prompts', title: 'Gentle Prompts', subtitle: 'Questions to speak into' },
   ],
   games: [
-    { id: 'puzzle', title: 'Puzzle', subtitle: 'A slow, soothing puzzle' },
-    { id: 'memory', title: 'Memory', subtitle: 'Gentle matching play' },
-    { id: 'breathe', title: 'Breathe', subtitle: 'A tiny reset' },
-    { id: 'colors', title: 'Colors', subtitle: 'Soft color play' },
+    {
+      id: 'puzzle',
+      title: 'Puzzle',
+      subtitle: 'A slow, soothing puzzle',
+      icon: 'extension-puzzle-outline',
+    },
+    {
+      id: 'memory',
+      title: 'Memory',
+      subtitle: 'Gentle matching play',
+      icon: 'albums-outline',
+    },
+    {
+      id: 'mood-match',
+      title: 'Mood Match',
+      subtitle: 'Match your mood',
+      icon: 'heart-outline',
+    },
+    {
+      id: 'bubble-pop',
+      title: 'Bubble Pop',
+      subtitle: 'Pop, pause, breathe',
+      icon: 'radio-button-on-outline',
+    },
+    {
+      id: 'zen-breathing',
+      title: 'Zen Breathing',
+      subtitle: 'Take a quiet reset.',
+      icon: 'leaf-outline',
+    },
+    {
+      id: 'little-doodle',
+      title: 'Little Doodle',
+      subtitle: 'Make something just because',
+      icon: 'brush-outline',
+    },
+    {
+      id: 'number-flow',
+      title: 'Number Flow',
+      subtitle: 'A simple focus game',
+      icon: 'keypad-outline',
+    },
   ],
 };
